@@ -1,0 +1,5 @@
+- insert:
+    - id: workspace-folder-status
+      name: '@local/workspace-folder-status'
+- id: ui-workspace
+  disabled: true
