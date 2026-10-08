@@ -16,9 +16,9 @@ Fold any group that has live sessions; an aggregated badge appears after the fol
 
 | Badge | Meaning |
 |---|---|
-| 🟡 + count | Pending approvals / plan reviews / questions inside (warning color, same as rows) |
-| 🌀 + count | Running sessions inside, incl. running subagents (StateDot ongoing spinner) |
-| 🟢 + count | Only completed-unread inside (`done` success color) |
+| Yellow dot + count | Pending approvals / plan reviews / questions inside (warning color, same as rows) |
+| Spinner + count | Running sessions inside, incl. running subagents (StateDot ongoing animation) |
+| Green dot + count | Only completed-unread inside (`done` success color) |
 | (none) | Everything idle — identical to stock behavior |
 
 Priority matches the row language: **pending > running > done**. Hovering the folder appends the same detail lines under path/creation time, e.g. `1 Approval · 2 Running`.
@@ -33,21 +33,6 @@ Priority matches the row language: **pending > running > done**. Hovering the fo
 - **Zero config**: no settings, works out of the box; same source of truth as row statuses (`pending > running > done`, blanks/archives skipped).
 - **Accessible**: the badge carries `role="img"` plus a localized `aria-label`.
 - **No stock files touched**: all customization lives in this fork; the profile patch is two lines.
-
----
-
-## Why option A
-
-Option B (keep live rows visible under a folded group) was also prototyped. A won:
-
-| | A (aggregate badge, current) | B (keep live rows) |
-|---|---|---|
-| Meaning of "folded" | Unchanged — fully hidden | Changed — leaks rows |
-| Sidebar length | Unchanged | Grows with live groups |
-| Information | Counts + hover details | Full rows |
-| Implementation | Badge on the folder row | Derivation-logic change |
-
-A has the smallest impact on existing habits: it only annotates the previously opaque folder.
 
 ---
 
