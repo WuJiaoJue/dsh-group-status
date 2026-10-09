@@ -43,7 +43,7 @@ Priority matches the row language: **pending > running > done**. Hovering the fo
 This package is a fork override: it registers the same slots as the stock `dsh-client-ui-workspace` and disables the stock row.
 
 ```sh
-dsh plugin --profile web add "file:/home/wujue/workspace/dsh-plugins/dsh-group-status"
+dsh plugin --profile web add "link:/home/wujue/workspace/dsh-plugins/dsh-group-status"
 # Takes effect after restarting dsh web (the whole sidebar package is swapped)
 ```
 

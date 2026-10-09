@@ -43,7 +43,7 @@
 本包是一个 fork 覆盖包：注册与官方 `dsh-client-ui-workspace` 相同的槽位，并把官方行 disable。安装：
 
 ```sh
-dsh plugin --profile web add "file:/home/wujue/workspace/dsh-plugins/dsh-group-status"
+dsh plugin --profile web add "link:/home/wujue/workspace/dsh-plugins/dsh-group-status"
 # 重启 dsh web 后生效（侧栏整包替换，需重新生成浏览器模块）
 ```
 

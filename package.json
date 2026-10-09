@@ -1,12 +1,10 @@
 {
   "name": "dsh-group-status",
   "description": "Fork of @deepseek-ai/dsh-client-ui-workspace 0.2.0-rc.2: collapsed workspace folders show aggregated live session status (running/approval). Self-maintained; rebase on upstream upgrades.",
-  "private": true,
   "version": "0.2.0-rc.2-fork1",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/client/ui-workspace"
+    "url": "git+https://github.com/WuJiaoJue/dsh-group-status.git"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -79,10 +77,12 @@
     "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2"
   },
   "files": [
+    "icon.svg",
+    "lib",
     "cordis.patch.yml",
-    "lib/index.js",
-    "lib/client.js",
-    "lib/types/**/*.d.ts"
+    "README.md",
+    "README.en.md",
+    "LICENSE"
   ],
   "scripts": {
     "bundle": "tsdown",
