@@ -1,6 +1,6 @@
 <div align="center">
 
-# workspace-folder-status — live status on collapsed folders
+# dsh-group-status — live status on collapsed folders
 
 [中文](./README.md) | **English**
 
@@ -43,7 +43,7 @@ Priority matches the row language: **pending > running > done**. Hovering the fo
 This package is a fork override: it registers the same slots as the stock `dsh-client-ui-workspace` and disables the stock row.
 
 ```sh
-dsh plugin --profile web add "file:/home/wujue/workspace/dsh-plugins/workspace-folder-status"
+dsh plugin --profile web add "file:/home/wujue/workspace/dsh-plugins/dsh-group-status"
 # Takes effect after restarting dsh web (the whole sidebar package is swapped)
 ```
 
@@ -52,7 +52,7 @@ Verify: fold a group with running/pending sessions → badge appears after the f
 ### Roll back
 
 ```sh
-dsh plugin --profile web remove "@local/workspace-folder-status"
+dsh plugin --profile web remove "dsh-group-status"
 # Both patch lines are withdrawn together; the stock row comes back. Restart to apply.
 ```
 
@@ -60,7 +60,7 @@ dsh plugin --profile web remove "@local/workspace-folder-status"
 
 ## Maintainer notes
 
-- **Fork base**: `@deepseek-ai/dsh-client-ui-workspace 0.2.0-rc.2`, full copy, 3 marked changes in `lib/client.js` (`workspace-folder-status fork`):
+- **Fork base**: `@deepseek-ai/dsh-client-ui-workspace 0.2.0-rc.2`, full copy, 3 marked changes in `lib/client.js` (`dsh-group-status fork`):
   1. `summarizeGroupStatus()` + `deriveGroups()`: aggregate over all members even when collapsed;
   2. `groupLiveBadge()` / `groupLiveLabel()`: badge on folded folder rows;
   3. `WorkspaceHoverContent`: detail lines for folded groups.
