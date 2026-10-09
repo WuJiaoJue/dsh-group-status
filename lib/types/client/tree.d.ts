@@ -41,6 +41,24 @@ export interface SessionNode {
 }
 /** Session order selected by the Workspace browser. */
 export type SessionOrderBy = 'manual' | 'updated';
+/**
+ * Aggregated live-session counts for one group, computed over all members so a
+ * folded folder row can hint at hidden activity.
+ */
+export interface GroupLiveStatus {
+    /** Members currently running. */
+    running: number;
+    /** Members awaiting tool approval. */
+    approval: number;
+    /** Members awaiting plan review. */
+    planReview: number;
+    /** Members awaiting a question answer. */
+    question: number;
+    /** Members finished and not yet opened (the green "done" reminder). */
+    done: number;
+    /** Running direct children across members. */
+    subagents: number;
+}
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {
     /** Group key: the workspace id or {@link UNGROUPED_KEY}. */
@@ -56,6 +74,8 @@ export interface GroupNode {
     expanded: boolean;
     /** The group contains the selected session (active folder tint; supplied here so the renderer never scans). */
     containsCurrent: boolean;
+    /** Aggregated member status; present even while folded, for the folder badge. */
+    liveStatus: GroupLiveStatus;
     /** Visible session rows (empty while the group is folded). */
     sessions: readonly SessionNode[];
 }

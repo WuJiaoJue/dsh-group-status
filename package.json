@@ -74,7 +74,10 @@
     "@deepseek-ai/dsh-util-workspace-path": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-shortcuts": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-product-analytics": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2",
+    "lightningcss": "^1.29.1",
+    "tsdown": "^0.22.2",
+    "typescript": "~5.9.2"
   },
   "files": [
     "icon.svg",
@@ -85,7 +88,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "bundle": "tsdown",
+    "types": "tsc -p tsconfig.json",
+    "bundle": "npm run types && tsdown",
+    "build": "npm run bundle",
     "watch": "tsdown --watch"
   }
 }

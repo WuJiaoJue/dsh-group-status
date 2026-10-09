@@ -1,0 +1,36 @@
+{
+  // Standalone client config for this fork. Upstream extends the monorepo
+  // tsconfig.base.client.json and resolves every repo-local dependency through
+  // monorepo `paths` aliases plus project references; a standalone package has
+  // neither, so imports resolve through node_modules (pinned devDependencies)
+  // using the same compiler options as upstream.
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "declaration": true,
+    "sourceMap": true,
+    "declarationMap": true,
+    "composite": true,
+    "incremental": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": [
+    "src"
+  ]
+}
