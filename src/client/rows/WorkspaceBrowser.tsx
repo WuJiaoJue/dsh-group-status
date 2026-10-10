@@ -29,7 +29,7 @@ import type {
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
 
-// dsh-gitea-dispatch waiting-review API (optional — degrades to "absent").
+// Cross-plugin hooks: each sibling plugin is optional and degrades to "absent".
 //
 // The lookup uses this bundle's **injected** `require` — the CJS factory parameter
 // `window.__ModuleLoader__.load({ factory: (require) => … })` supplies, which resolves
@@ -37,11 +37,22 @@ import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller
 //
 // It must NOT be `globalThis.require`: the host defines no global require (verified in
 // the live page: `typeof globalThis.require === 'undefined'`), so a global lookup
-// silently disables the integration while still building and booting cleanly. The
-// bundle preset externalizes exactly these specifiers (deps.neverBundle matches
-// dsh.client.external), keeping them runtime requires instead of inlining.
+// silently disables every cross-plugin integration while still building and booting
+// cleanly. The bundle preset externalizes exactly these specifiers (deps.neverBundle
+// matches dsh.client.external), keeping them runtime requires instead of inlining.
 declare const require: (id: string) => unknown
 
+// dsh-later schedule summary API (optional — gracefully degrades when absent)
+type ScheduleSummaryMap = ReadonlyMap<string, { count: number; pausedCount: number; nextAt?: number; state: 'scheduled' | 'urgent' | 'overdue' }>
+let useScheduleSummaryHook: (() => ScheduleSummaryMap | undefined) | undefined
+try {
+  const dshLater = require('dsh-later/client') as { useScheduleSummary?: () => ScheduleSummaryMap } | undefined
+  useScheduleSummaryHook = dshLater?.useScheduleSummary
+} catch {
+  // dsh-later not installed — schedule summary will be undefined
+}
+
+// dsh-gitea-dispatch waiting-review API (dsh-gitea-dispatch#16, same optional rule).
 // Its store owns the only poll of /api/gitea-dispatch/waiting, so this plugin never
 // issues that request itself: the badge costs no extra traffic.
 type WaitingReviewSummaryMap = ReadonlyMap<string, { prNumber: number; state: 'waiting' | 'overdue' }>
@@ -52,7 +63,6 @@ try {
 } catch {
   // dsh-gitea-dispatch not installed — waiting review count stays 0
 }
-
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
@@ -316,7 +326,7 @@ function SessionTree({
 }: SessionTreeProps) {
   const panelActive = usePanelInfo(info => info.activePanelId !== null)
   const statuses = useSessionStatus(s => s)
-  // Absent publisher → undefined → every group's waiting count stays 0.
+  const scheduleSummary = useScheduleSummaryHook?.()
   const waitingReviewSummary = useWaitingSummaryHook?.()
   const current = panelActive
     ? undefined
@@ -364,8 +374,8 @@ function SessionTree({
     () => deriveGroups(list, workspaces, rowState, statuses, {
       expandedGroups,
       ungroupedOrder: ungroupedSessionIds,
-    }, waitingReviewSummary),
-    [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds, waitingReviewSummary],
+    }, waitingReviewSummary, scheduleSummary),
+    [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds, scheduleSummary, waitingReviewSummary],
   )
   useEffect(() => {
     for (let key = revealGroup; key !== undefined; key = parents.get(key)) {
