@@ -81,7 +81,28 @@ export interface GroupLiveStatus {
   done: number
   /** Running direct children across members. */
   subagents: number
+  /** Members waiting for CI review of their PR (from dsh-gitea-dispatch). */
+  waitingReviewCount: number
+  /** Highest-priority waiting state across members: overdue > waiting. */
+  waitingReviewState: 'waiting' | 'overdue' | undefined
 }
+
+/**
+ * One session's waiting-review fact, as published by dsh-gitea-dispatch's
+ * `useWaitingSummary()` (issue: dsh-gitea-dispatch#16).
+ *
+ * Structurally typed on purpose: this plugin must not depend on the other
+ * plugin's types, and must degrade to "unsupported" when it is absent.
+ */
+export interface WaitingReviewSummaryEntry {
+  /** The PR number that session is waiting on. */
+  readonly prNumber: number
+  /** `overdue` once the CI wait window has closed. */
+  readonly state: 'waiting' | 'overdue'
+}
+
+/** Session id → that session's waiting-review fact (no entry = not waiting). */
+export type WaitingReviewSummaryMap = ReadonlyMap<string, WaitingReviewSummaryEntry>
 
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {
@@ -439,6 +460,20 @@ function sessionNode(
 }
 
 /**
+ * Strip the `session-` / `webhook-` prefix from a Session id.
+ *
+ * dsh-gitea-dispatch publishes its waiting map keyed by the host SessionId, but
+ * its HTTP endpoints key by this normalized form. Accepting both here keeps the
+ * badge working across that publisher's conventions without knowing which is in
+ * play.
+ * @param id - Session id in either form.
+ * @returns The id without its leading kind prefix.
+ */
+function stripSessionPrefix(id: string): string {
+  return id.replace(/^(?:session|webhook)-/, '')
+}
+
+/**
  * Derive the workspace browser groups with every session as a top-level row.
  *
  * Every group shows, except that the archived-only filter drops groups
@@ -452,6 +487,7 @@ function sessionNode(
  * @param rowState - registry-global pin and archive sets plus the archived filter.
  * @param statuses - unified UI status by Session.
  * @param view - local expansion arrays.
+ * @param waitingReviewSummary - dsh-gitea-dispatch waiting map (session id → waiting entry).
  * @returns group sections in render order.
  */
 export function deriveGroups(
@@ -460,6 +496,7 @@ export function deriveGroups(
   rowState: SessionRowState,
   statuses: SessionStatuses,
   view: TreeView,
+  waitingReviewSummary?: WaitingReviewSummaryMap,
 ): GroupNode[] {
   const archived = new Set(rowState.archivedSessionIds)
   const pinned = new Set(rowState.pinnedSessionIds)
@@ -473,6 +510,7 @@ export function deriveGroups(
     const expanded = expandedGroups.has(g.key)
     const members = sectionMembers(g.sessions, pinned, archived)
       .map(session => sessionNode(session, list, statuses, pinned, archived))
+    const memberIds = members.map(m => m.id)
     groups.push({
       key: g.key,
       workspaceId: g.workspaceId,
@@ -482,7 +520,7 @@ export function deriveGroups(
       sessionCount: g.sessions.length,
       expanded,
       containsCurrent: g.key === currentGroup,
-      liveStatus: summarizeGroupStatus(members),
+      liveStatus: summarizeGroupStatus(members, memberIds, waitingReviewSummary),
       sessions: expanded ? members : [],
     })
   }
@@ -494,8 +532,15 @@ export function deriveGroups(
  * hidden live sessions. Mirrors the session-row status priority (pending
  * outranks running outranks completed) at the counting level; labels resolve with
  * locale at render time.
+ * @param nodes - member rows of the group.
+ * @param sessionIds - the same members' Session ids (waiting facts are keyed by id).
+ * @param waitingReviewSummary - dsh-gitea-dispatch waiting map, when that plugin is loaded.
  */
-function summarizeGroupStatus(nodes: readonly SessionNode[]): GroupLiveStatus {
+function summarizeGroupStatus(
+  nodes: readonly SessionNode[],
+  sessionIds: readonly string[],
+  waitingReviewSummary?: WaitingReviewSummaryMap,
+): GroupLiveStatus {
   let running = 0
   let approval = 0
   let planReview = 0
@@ -511,7 +556,30 @@ function summarizeGroupStatus(nodes: readonly SessionNode[]): GroupLiveStatus {
     else if (n.completed) done += 1
     subagents += n.runningSubagentCount
   }
-  return { running, approval, planReview, question, done, subagents }
+
+  // Aggregate waiting-review summary from dsh-gitea-dispatch (its #16).
+  //
+  // Counts **members**, not PRs: one session waits on exactly one PR, and the
+  // badge's number must mean "how many sessions in this folder need attention".
+  // `overdue` outranks `waiting` for the dot color.
+  //
+  // The publisher keys its map by the host SessionId; the normalized form is
+  // accepted as well because that plugin's HTTP endpoint uses it (its link-line
+  // join needs one shared convention). Matching both keeps this side independent
+  // of which convention the installed publisher happens to emit.
+  let waitingReviewCount = 0
+  let waitingReviewState: 'waiting' | 'overdue' | undefined = undefined
+  if (waitingReviewSummary && sessionIds.length > 0) {
+    for (const id of sessionIds) {
+      const entry = waitingReviewSummary.get(id) ?? waitingReviewSummary.get(stripSessionPrefix(id))
+      if (entry === undefined) continue
+      waitingReviewCount += 1
+      if (entry.state === 'overdue') waitingReviewState = 'overdue'
+      else if (waitingReviewState === undefined) waitingReviewState = 'waiting'
+    }
+  }
+
+  return { running, approval, planReview, question, done, subagents, waitingReviewCount, waitingReviewState }
 }
 
 /**
