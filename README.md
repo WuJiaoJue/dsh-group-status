@@ -65,6 +65,45 @@ dsh plugin --profile web remove "dsh-group-status"
   2. `groupLiveBadge()` / `groupLiveLabel()`：`ProjectRowItem` 在收起且有活时画徽标；
   3. `WorkspaceHoverContent`：收起时追加状态明细行。
 - **升级 rebase**：diff 官方新旧版 → 把 3 处合过去 → commit（信息里写清基线版本）→ 重装重启。建议 tag 带基线，如 `v0.2.0-rc.2-fork1`。
+
+### 升级检查清单
+
+当上游 `@deepseek-ai/dsh-client-ui-workspace` 发布新版本时：
+
+1. **Diff 官方新旧版**：
+   ```sh
+   diff -u node_modules/@deepseek-ai/dsh-client-ui-workspace/lib/client.js lib/client.js
+   ```
+
+2. **合并 3 处改动**（搜索 `[dsh-group-status fork]` 标记）：
+   - `summarizeGroupStatus()` + `deriveGroups()`（约 line 469）
+   - `groupLiveBadge()` / `groupLiveLabel()`（约 line 1291, 1305）
+   - `WorkspaceHoverContent` 的 `status` prop（约 line 1446）
+
+3. **验证 slot 名称**：检查以下 slot 是否改名：
+   - `sidebar.workspaces`
+   - `sidebar.workspaces.session.menu.item`
+   - `sidebar.workspaces.session.row.action`
+   - `shell.overlay`
+   - `conversation.hero.workspace`
+
+4. **验证组件签名**：检查以下组件的 props 是否变化：
+   - `ProjectRowItem`（group, containsCurrentDescendant, onToggle, onCreate, actions, drag, home, newShortcut, t）
+   - `WorkspaceHoverContent`（label, cwd, createdAt, status, t）
+
+5. **重装重启**：
+   ```sh
+   dsh plugin --profile web remove dsh-group-status
+   dsh plugin --profile web add "link:/home/wujue/workspace/dsh-plugins/dsh-group-status"
+   # 重启 dsh web
+   ```
+
+6. **验证功能**：
+   - 找一个有进行中/待审批会话的分组 → 收起 → 徽标出现
+   - 悬停看明细
+   - 展开后徽标消失（子行自带状态）
+   - 检查浏览器 console 无报错
+
 - **已知限制**：聚合计数与展开态共用同一份派生，超大分组（数百会话）每次状态变更多一次全量 traverse，和展开渲染同量级，可接受。
 
 ## 许可

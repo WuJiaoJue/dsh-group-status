@@ -176,24 +176,26 @@ function groupLiveLabel(s: GroupLiveStatus, t: RowTranslate): string {
 
 /**
  * Aggregated live-status badge for a folded folder row. Dots reuse StateDot so
- * colors match session rows (warning = pending, ongoing = running, done =
- * completed). Renders nothing while expanded or when nothing is live.
+ * colors match session rows (warning = pending, ongoing = running).
+ * Renders nothing while expanded or when nothing is pending/active.
  */
 function groupLiveBadge(group: GroupNode, t: RowTranslate): ReactNode {
   const s = group.liveStatus
   if (group.expanded || s === undefined) return null
   const pending = s.approval + s.planReview + s.question
   const active = s.running + s.subagents
-  const total = pending + active + s.done
-  if (total === 0) return null
+  // 只在有 pending 或 active 时显示徽标（done 不在徽标显示）
+  if (pending === 0 && active === 0) return null
   const label = groupLiveLabel(s, t)
+  const dots: ReactNode[] = []
+  if (pending > 0) dots.push(<StateDot key="warn" state="warning" />)
+  if (active > 0) dots.push(<StateDot key="run" state="ongoing" />)
+  // 数字只统计 pending + active（和 dot 一致）
+  const count = pending + active
   return (
-    <span className={css.groupLive} role="img" aria-label={label} title={label}>
-      {pending > 0 && <StateDot state="warning" />}
-      {active > 0
-        ? <StateDot state="ongoing" />
-        : s.done > 0 && <StateDot state="done" />}
-      <span className={css.groupLiveCount}>{total}</span>
+    <span className={css.groupBadge} role="img" aria-label={label} title={label}>
+      {dots}
+      <span className={css.groupBadgeCount}>{count}</span>
     </span>
   )
 }

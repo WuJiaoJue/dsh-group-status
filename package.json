@@ -7,6 +7,7 @@
     "url": "git+https://github.com/WuJiaoJue/dsh-group-status.git"
   },
   "type": "module",
+  "icon": "./icon.svg",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {

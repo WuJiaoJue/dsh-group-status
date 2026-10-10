@@ -388,7 +388,7 @@
    colors carry the meaning, so the trailing chip only adds the count. It sits
    between the title and the hover-revealed actions, and reserves no space while
    a group has nothing live (the element is not rendered at all). */
-.groupLive {
+.groupBadge {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -396,7 +396,7 @@
   margin-inline-start: 4px;
 }
 
-.groupLiveCount {
+.groupBadgeCount {
   font-size: 9px;
   line-height: 12px;
   border: 1px solid currentColor;
