@@ -93,6 +93,7 @@
     "types": "tsc -p tsconfig.json",
     "bundle": "npm run types && tsdown",
     "build": "npm run bundle",
+    "test": "npm run types && node --test tests/*.node.test.mjs",
     "watch": "tsdown --watch"
   }
 }
