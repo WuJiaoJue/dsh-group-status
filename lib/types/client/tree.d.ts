@@ -58,6 +58,12 @@ export interface GroupLiveStatus {
     done: number;
     /** Running direct children across members. */
     subagents: number;
+    /** Members with scheduled tasks (from dsh-later). */
+    scheduledSessions: number;
+    /** Total scheduled tasks across members (including paused). */
+    scheduledCount: number;
+    /** Highest-priority schedule state: overdue > urgent > scheduled. */
+    scheduleState: 'scheduled' | 'urgent' | 'overdue' | undefined;
     /** Members waiting for CI review of their PR (from dsh-gitea-dispatch). */
     waitingReviewCount: number;
     /** Highest-priority waiting state across members: overdue > waiting. */
@@ -78,6 +84,24 @@ export interface WaitingReviewSummaryEntry {
 }
 /** Session id → that session's waiting-review fact (no entry = not waiting). */
 export type WaitingReviewSummaryMap = ReadonlyMap<string, WaitingReviewSummaryEntry>;
+/**
+ * One session's schedule fact, as published by dsh-later's `useScheduleSummary()`.
+ *
+ * Structurally typed for the same reason as {@link WaitingReviewSummaryEntry}:
+ * no compile-time dependency on the other plugin, and absence degrades to zero.
+ */
+export interface ScheduleSummaryEntry {
+    /** Scheduled tasks on that session (paused ones included). */
+    readonly count: number;
+    /** How many of those are paused. */
+    readonly pausedCount: number;
+    /** Earliest next trigger (epoch ms); absent when every task is paused. */
+    readonly nextAt?: number;
+    /** Highest-priority state at snapshot time. */
+    readonly state: 'scheduled' | 'urgent' | 'overdue';
+}
+/** Session id → that session's schedule fact (no entry = no scheduled tasks). */
+export type ScheduleSummaryMap = ReadonlyMap<string, ScheduleSummaryEntry>;
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {
     /** Group key: the workspace id or {@link UNGROUPED_KEY}. */
@@ -186,9 +210,10 @@ export interface SessionRowState {
  * @param statuses - unified UI status by Session.
  * @param view - local expansion arrays.
  * @param waitingReviewSummary - dsh-gitea-dispatch waiting map (session id → waiting entry).
+ * @param scheduleSummary - dsh-later schedule map (session id → schedule entry).
  * @returns group sections in render order.
  */
-export declare function deriveGroups(list: SessionListState, workspaces: readonly WorkspaceView[], rowState: SessionRowState, statuses: SessionStatuses, view: TreeView, waitingReviewSummary?: WaitingReviewSummaryMap): GroupNode[];
+export declare function deriveGroups(list: SessionListState, workspaces: readonly WorkspaceView[], rowState: SessionRowState, statuses: SessionStatuses, view: TreeView, waitingReviewSummary?: WaitingReviewSummaryMap, scheduleSummary?: ScheduleSummaryMap): GroupNode[];
 /**
  * Select complete flat-list membership, independently of archive visibility.
  * @param list - sessions list snapshot.
