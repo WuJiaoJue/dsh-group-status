@@ -58,7 +58,26 @@ export interface GroupLiveStatus {
     done: number;
     /** Running direct children across members. */
     subagents: number;
+    /** Members waiting for CI review of their PR (from dsh-gitea-dispatch). */
+    waitingReviewCount: number;
+    /** Highest-priority waiting state across members: overdue > waiting. */
+    waitingReviewState: 'waiting' | 'overdue' | undefined;
 }
+/**
+ * One session's waiting-review fact, as published by dsh-gitea-dispatch's
+ * `useWaitingSummary()` (issue: dsh-gitea-dispatch#16).
+ *
+ * Structurally typed on purpose: this plugin must not depend on the other
+ * plugin's types, and must degrade to "unsupported" when it is absent.
+ */
+export interface WaitingReviewSummaryEntry {
+    /** The PR number that session is waiting on. */
+    readonly prNumber: number;
+    /** `overdue` once the CI wait window has closed. */
+    readonly state: 'waiting' | 'overdue';
+}
+/** Session id → that session's waiting-review fact (no entry = not waiting). */
+export type WaitingReviewSummaryMap = ReadonlyMap<string, WaitingReviewSummaryEntry>;
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {
     /** Group key: the workspace id or {@link UNGROUPED_KEY}. */
@@ -166,9 +185,10 @@ export interface SessionRowState {
  * @param rowState - registry-global pin and archive sets plus the archived filter.
  * @param statuses - unified UI status by Session.
  * @param view - local expansion arrays.
+ * @param waitingReviewSummary - dsh-gitea-dispatch waiting map (session id → waiting entry).
  * @returns group sections in render order.
  */
-export declare function deriveGroups(list: SessionListState, workspaces: readonly WorkspaceView[], rowState: SessionRowState, statuses: SessionStatuses, view: TreeView): GroupNode[];
+export declare function deriveGroups(list: SessionListState, workspaces: readonly WorkspaceView[], rowState: SessionRowState, statuses: SessionStatuses, view: TreeView, waitingReviewSummary?: WaitingReviewSummaryMap): GroupNode[];
 /**
  * Select complete flat-list membership, independently of archive visibility.
  * @param list - sessions list snapshot.

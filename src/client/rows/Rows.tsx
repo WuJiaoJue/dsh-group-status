@@ -17,7 +17,7 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   HoverCard, IconArchiveOutlineRegular, IconEditOutlineRegular,
   IconEllipsisOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
-  IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
+  IconListPenOutlineRegular, IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
   IconTriangleRightFillRegular, IconUnarchiveOutlineRegular, Menu, relativeTime, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
@@ -170,6 +170,7 @@ function groupLiveLabel(s: GroupLiveStatus, t: RowTranslate): string {
   if (s.subagents > 0) {
     parts.push(t(s.subagents === 1 ? 'status.subagentsRunning.one' : 'status.subagentsRunning.other', { n: s.subagents }))
   }
+  if (s.waitingReviewCount > 0) parts.push(`${s.waitingReviewCount} ${t('status.waitingReview')}`)
   if (s.done > 0) parts.push(`${s.done} ${t('status.completed')}`)
   return parts.join(' · ')
 }
@@ -184,14 +185,26 @@ function groupLiveBadge(group: GroupNode, t: RowTranslate): ReactNode {
   if (group.expanded || s === undefined) return null
   const pending = s.approval + s.planReview + s.question
   const active = s.running + s.subagents
-  // 只在有 pending 或 active 时显示徽标（done 不在徽标显示）
-  if (pending === 0 && active === 0) return null
+  const hasWaitingReview = s.waitingReviewCount > 0
+  // 只在有 pending / active / 等待评审时显示徽标（done 不在徽标显示）
+  if (pending === 0 && active === 0 && !hasWaitingReview) return null
   const label = groupLiveLabel(s, t)
   const dots: ReactNode[] = []
   if (pending > 0) dots.push(<StateDot key="warn" state="warning" />)
   if (active > 0) dots.push(<StateDot key="run" state="ongoing" />)
-  // 数字只统计 pending + active（和 dot 一致）
-  const count = pending + active
+  // 等待评审：琥珀色（超时转红）。用**不同图标**而非只换颜色——色盲用户无法只靠
+  // 颜色区分两个同为"等待"语义的状态。数据来自 dsh-gitea-dispatch 的
+  // useWaitingSummary()，本插件不自己轮询该端点（其 store 是唯一轮询方）。
+  if (hasWaitingReview) {
+    const stateColor = s.waitingReviewState === 'overdue' ? '#ef4444' : '#eab308'
+    dots.push(
+      <span key="waiting-review" style={{ color: stateColor, display: 'inline-flex', alignItems: 'center' }}>
+        <IconListPenOutlineRegular size={14} />
+      </span>
+    )
+  }
+  // 数字统计 pending + active + 等待评审（与 dot 一致）
+  const count = pending + active + s.waitingReviewCount
   return (
     <span className={css.groupBadge} role="img" aria-label={label} title={label}>
       {dots}
@@ -220,6 +233,9 @@ function WorkspaceHoverContent({ label, cwd, createdAt, status, t }: {
         state: 'ongoing',
         text: t(status.subagents === 1 ? 'status.subagentsRunning.one' : 'status.subagentsRunning.other', { n: status.subagents }),
       })
+    }
+    if (status.waitingReviewCount > 0) {
+      lines.push({ state: 'warning', text: `${status.waitingReviewCount} ${t('status.waitingReview')}` })
     }
     if (status.done > 0) lines.push({ state: 'done', text: `${status.done} ${t('status.completed')}` })
   }
