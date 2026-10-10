@@ -66,6 +66,27 @@ dsh plugin --profile web remove "dsh-group-status"
   3. `WorkspaceHoverContent`：收起时追加状态明细行。
 - **升级 rebase**：diff 官方新旧版 → 把 3 处合过去 → commit（信息里写清基线版本）→ 重装重启。建议 tag 带基线，如 `v0.2.0-rc.2-fork1`。
 
+### 跨插件摘要模板（`src/client/cross-plugin-summary.ts`）
+
+想把某插件自己的状态暴露给**别的插件**消费（dsh-later 的定时任务、dsh-gitea-dispatch
+的等待评审），可复用这份骨架：`createSummaryStore`（可订阅 store）+ `createSummaryRegistry`
+（迟到的 store 自愈）+ `summarizeGroup` / `mapEquals` / `entryFor`（折叠与 id 归一）。
+
+⚠️ **复制，不要 import。** 跨插件值导入在本项目走不通，实测：
+
+```
+✘ [ERROR] Could not resolve "dsh-group-status"
+```
+
+别的插件不依赖本包，客户端 bundle 又是自包含的闭包工厂；而 bundle 纯净度闸门只拦
+`@deepseek-ai/*` 前缀，连"跨插件值导入"的专用报错都不会给。所以正确接法是：把这份
+骨架**复制**进 provider 插件，provider 用 `registry.setStore(store)` 登记并把
+`registry.useSummary` 从自己的 client 入口导出，consumer 再 `require('<provider>/client')`
+用它的 hook。
+
+跑测试：`npm test`（`node --test`，用例在 `tests/*.node.test.mjs`）。仓库既有的
+`tests/*.client.spec.tsx` 没有可用 runner，这份模板的每条改进都由可跑的用例锁住。
+
 ### 升级检查清单
 
 当上游 `@deepseek-ai/dsh-client-ui-workspace` 发布新版本时：
