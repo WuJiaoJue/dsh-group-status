@@ -6,7 +6,7 @@
 
 **中文** | [English](./README.en.md)
 
-[![version](https://img.shields.io/badge/version-0.2.0--rc.2--fork1-0EA5E9)](https://github.com/WuJiaoJue/dsh-group-status)
+[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/WuJiaoJue/dsh-group-status)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 
