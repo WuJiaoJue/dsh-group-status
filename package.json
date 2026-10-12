@@ -126,6 +126,7 @@
     "test:node": "npm run types && node --test tests/*.node.test.mjs",
     "test:spec": "vitest run",
     "test:watch": "vitest",
-    "check-upstream": "npx tsx scripts/check-upstream.ts"
+    "check-upstream": "npx tsx scripts/check-upstream.ts",
+    "prepublishOnly": "npm run build"
   }
 }
