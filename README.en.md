@@ -18,10 +18,10 @@
 
 ## Preview
 
-**Collapsed folder rows carry the aggregate badge** — `dsh-group-status` has one running session (spinner); `dsh-gitea-dispatch` has one waiting-for-answer plus one running (yellow dot + icon + count `2`):
+**Collapsed folder rows carry the aggregate badge** — `tmp` has one running session (spinner), one completed (green dot), one scheduled task (clock), count `3`:
 
 <p align="center">
-<img src="docs/media/screenshot-folders.png" width="272" alt="Two collapsed sidebar groups: dsh-group-status showing a spinner, dsh-gitea-dispatch showing a yellow dot, a review icon and the count 2"/>
+<img src="docs/media/screenshot-folders.png" width="267" alt="Collapsed sidebar group tmp: spinner, green dot, clock icon and count 3"/>
 </p>
 
 **Hover for details** — the hover card appends aggregated detail lines under the path and creation time:

@@ -90,8 +90,9 @@ export function groupLiveBadge(group: GroupNode, t: RowTranslate, showCompleted:
   }
   // 数字统计 pending + active + 已完成 + 定时任务会话 + 等待评审会话（与 dot 一致）
   // P2-3: 数字上限 99+，避免大项目组徽标过宽。
+  // P3-3: count = 1 时省略数字（点已表达"有东西"，"1"无额外信息）。
   const count = pending + active + completed + scheduled + s.waitingReviewCount
-  const countLabel = count > 99 ? '99+' : String(count)
+  const countLabel = count > 99 ? '99+' : count > 1 ? String(count) : ''
   // P2-2: 紧急状态（overdue/urgent）时添加脉冲动画类。
   const isUrgent = s.scheduleState === 'overdue' || s.scheduleState === 'urgent'
     || s.waitingReviewState === 'overdue'
@@ -99,7 +100,7 @@ export function groupLiveBadge(group: GroupNode, t: RowTranslate, showCompleted:
   return (
     <span className={badgeClass} role="img" aria-label={label} title={label}>
       {dots}
-      <span className={css.groupBadgeCount}>{countLabel}</span>
+      {countLabel && <span className={css.groupBadgeCount}>{countLabel}</span>}
     </span>
   )
 }

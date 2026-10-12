@@ -18,10 +18,10 @@
 
 ## 效果预览
 
-**收起的文件夹行自带聚合徽标** —— 上面 `dsh-group-status` 有 1 个会话进行中（转圈），下面 `dsh-gitea-dispatch` 有 1 个等待回答 + 1 个进行中（黄点 + 图标 + 数字 `2`）：
+**收起的文件夹行自带聚合徽标** —— 下面 `tmp` 有 1 个进行中（转圈）、1 个已完成（绿点）、1 个定时任务（时钟），数字 `3`：
 
 <p align="center">
-<img src="docs/media/screenshot-folders.png" width="272" alt="侧栏中收起的两个分组：dsh-group-status 显示转圈，dsh-gitea-dispatch 显示黄点、等待评审图标与数字 2"/>
+<img src="docs/media/screenshot-folders.png" width="267" alt="侧栏中收起的 tmp 分组：转圈、绿点、时钟图标与数字 3"/>
 </p>
 
 **悬停看明细** —— hover 卡在原路径、创建时间下面追加聚合明细行：
