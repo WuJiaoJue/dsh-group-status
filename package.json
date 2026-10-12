@@ -1,10 +1,28 @@
 {
   "name": "dsh-group-status",
-  "description": "Fork of @deepseek-ai/dsh-client-ui-workspace 0.2.0-rc.2: collapsed workspace folders show aggregated live session status (running/approval). Self-maintained; rebase on upstream upgrades.",
   "version": "0.2.0-rc.2-fork1",
+  "description": "DSH 侧栏折叠分组聚合徽标：收起的文件夹行显示进行中/待审批/已完成/定时任务/等待评审的聚合状态，带数字与悬停明细。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "group-status",
+    "badge",
+    "sidebar",
+    "workspace",
+    "deepseek-ai"
+  ],
+  "author": "WuJiaoJue",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/WuJiaoJue/dsh-group-status.git"
+  },
+  "homepage": "https://github.com/WuJiaoJue/dsh-group-status",
+  "bugs": {
+    "url": "https://github.com/WuJiaoJue/dsh-group-status/issues"
+  },
+  "engines": {
+    "node": "^22.19 || >=24"
   },
   "type": "module",
   "icon": "./icon.svg",
@@ -96,7 +114,8 @@
     "cordis.patch.yml",
     "README.md",
     "README.en.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "types": "tsc -p tsconfig.json",
