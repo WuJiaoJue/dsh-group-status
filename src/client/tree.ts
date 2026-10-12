@@ -13,6 +13,29 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
+// Fork-owned: aggregated status computation extracted to keep upstream diff minimal.
+// Re-exported below so existing imports from `tree.ts` keep working.
+import {
+  EMPTY_LIVE_STATUS,
+  summarizeGroupStatus,
+  type GroupLiveStatus,
+  type ScheduleSummaryEntry,
+  type ScheduleSummaryMap,
+  type WaitingReviewSummaryEntry,
+  type WaitingReviewSummaryMap,
+} from './group-status.ts'
+
+// Re-export fork-owned types and values so consumers importing from `tree.ts`
+// don't need to change their import paths.
+export {
+  EMPTY_LIVE_STATUS,
+  summarizeGroupStatus,
+  type GroupLiveStatus,
+  type ScheduleSummaryEntry,
+  type ScheduleSummaryMap,
+  type WaitingReviewSummaryEntry,
+  type WaitingReviewSummaryMap,
+}
 
 /** Group key for Sessions outside every Workspace. */
 export const UNGROUPED_KEY = ''
@@ -64,71 +87,9 @@ export interface SessionNode {
 /** Session order selected by the Workspace browser. */
 export type SessionOrderBy = 'manual' | 'updated'
 
-/**
- * Aggregated live-session counts for one group, computed over all members so a
- * folded folder row can hint at hidden activity.
- */
-export interface GroupLiveStatus {
-  /** Members currently running. */
-  running: number
-  /** Members awaiting tool approval. */
-  approval: number
-  /** Members awaiting plan review. */
-  planReview: number
-  /** Members awaiting a question answer. */
-  question: number
-  /** Members finished and not yet opened (the green "done" reminder). */
-  done: number
-  /** Running direct children across members. */
-  subagents: number
-  /** Members with scheduled tasks (from dsh-later). */
-  scheduledSessions: number
-  /** Total scheduled tasks across members (including paused). */
-  scheduledCount: number
-  /** Highest-priority schedule state: overdue > urgent > scheduled. */
-  scheduleState: 'scheduled' | 'urgent' | 'overdue' | undefined
-  /** Members waiting for CI review of their PR (from dsh-gitea-dispatch). */
-  waitingReviewCount: number
-  /** Highest-priority waiting state across members: overdue > waiting. */
-  waitingReviewState: 'waiting' | 'overdue' | undefined
-}
-
-/**
- * One session's waiting-review fact, as published by dsh-gitea-dispatch's
- * `useWaitingSummary()` (issue: dsh-gitea-dispatch#16).
- *
- * Structurally typed on purpose: this plugin must not depend on the other
- * plugin's types, and must degrade to "unsupported" when it is absent.
- */
-export interface WaitingReviewSummaryEntry {
-  /** The PR number that session is waiting on. */
-  readonly prNumber: number
-  /** `overdue` once the CI wait window has closed. */
-  readonly state: 'waiting' | 'overdue'
-}
-
-/** Session id → that session's waiting-review fact (no entry = not waiting). */
-export type WaitingReviewSummaryMap = ReadonlyMap<string, WaitingReviewSummaryEntry>
-
-/**
- * One session's schedule fact, as published by dsh-later's `useScheduleSummary()`.
- *
- * Structurally typed for the same reason as {@link WaitingReviewSummaryEntry}:
- * no compile-time dependency on the other plugin, and absence degrades to zero.
- */
-export interface ScheduleSummaryEntry {
-  /** Scheduled tasks on that session (paused ones included). */
-  readonly count: number
-  /** How many of those are paused. */
-  readonly pausedCount: number
-  /** Earliest next trigger (epoch ms); absent when every task is paused. */
-  readonly nextAt?: number
-  /** Highest-priority state at snapshot time. */
-  readonly state: 'scheduled' | 'urgent' | 'overdue'
-}
-
-/** Session id → that session's schedule fact (no entry = no scheduled tasks). */
-export type ScheduleSummaryMap = ReadonlyMap<string, ScheduleSummaryEntry>
+// ── GroupLiveStatus, EMPTY_LIVE_STATUS, and cross-plugin summary types ──
+// Imported from ./group-status.ts and re-exported above (lines 16-32).
+// Keeping them in a separate file minimises the upstream diff surface.
 
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {
@@ -486,20 +447,6 @@ function sessionNode(
 }
 
 /**
- * Strip the `session-` / `webhook-` prefix from a Session id.
- *
- * dsh-gitea-dispatch publishes its waiting map keyed by the host SessionId, but
- * its HTTP endpoints key by this normalized form. Accepting both here keeps the
- * badge working across that publisher's conventions without knowing which is in
- * play.
- * @param id - Session id in either form.
- * @returns The id without its leading kind prefix.
- */
-function stripSessionPrefix(id: string): string {
-  return id.replace(/^(?:session|webhook)-/, '')
-}
-
-/**
  * Derive the workspace browser groups with every session as a top-level row.
  *
  * Every group shows, except that the archived-only filter drops groups
@@ -548,97 +495,15 @@ export function deriveGroups(
       sessionCount: g.sessions.length,
       expanded,
       containsCurrent: g.key === currentGroup,
-      liveStatus: summarizeGroupStatus(members, memberIds, waitingReviewSummary, scheduleSummary),
+      // P0-1 优化：展开时徽标不显示，跳过全量聚合（折叠时再算）。
+      // 折叠动作本身触发 re-render，届时 expanded=false 会重新走 summarizeGroupStatus。
+      liveStatus: expanded
+        ? EMPTY_LIVE_STATUS
+        : summarizeGroupStatus(members, memberIds, waitingReviewSummary, scheduleSummary),
       sessions: expanded ? members : [],
     })
   }
   return groups
-}
-
-/**
- * Fold every member row of a group into counts so a collapsed folder can hint at
- * hidden live sessions. Mirrors the session-row status priority (pending
- * outranks running outranks completed) at the counting level; labels resolve with
- * locale at render time.
- * @param nodes - member rows of the group.
- * @param sessionIds - the same members' Session ids (schedule and waiting facts are keyed by id).
- * @param waitingReviewSummary - dsh-gitea-dispatch waiting map, when that plugin is loaded.
- * @param scheduleSummary - dsh-later schedule map, when that plugin is loaded.
- */
-function summarizeGroupStatus(
-  nodes: readonly SessionNode[],
-  sessionIds: readonly string[],
-  waitingReviewSummary?: WaitingReviewSummaryMap,
-  scheduleSummary?: ScheduleSummaryMap,
-): GroupLiveStatus {
-  let running = 0
-  let approval = 0
-  let planReview = 0
-  let question = 0
-  let done = 0
-  let subagents = 0
-  for (const n of nodes) {
-    if (n.blank || n.archived) continue
-    if (n.pendingInteraction === 'approval') { approval += 1; continue }
-    if (n.pendingInteraction === 'plan-review') { planReview += 1; continue }
-    if (n.pendingInteraction === 'question') { question += 1; continue }
-    if (n.running) running += 1
-    else if (n.completed) done += 1
-    subagents += n.runningSubagentCount
-  }
-  
-  // Aggregate schedule summary from dsh-later
-  let scheduledSessions = 0
-  let scheduledCount = 0
-  let scheduleState: 'scheduled' | 'urgent' | 'overdue' | undefined = undefined
-  
-  if (scheduleSummary && sessionIds.length > 0) {
-    let totalSessions = 0
-    let totalCount = 0
-    let highestPriority = 0 // 0=none, 1=scheduled, 2=urgent, 3=overdue
-    
-    for (const id of sessionIds) {
-      const entry = scheduleSummary.get(id)
-      if (entry) {
-        totalSessions += 1
-        totalCount += entry.count
-        const priority = entry.state === 'overdue' ? 3 : entry.state === 'urgent' ? 2 : 1
-        if (priority > highestPriority) highestPriority = priority
-      }
-    }
-    
-    scheduledSessions = totalSessions
-    scheduledCount = totalCount
-    scheduleState = highestPriority === 3 ? 'overdue' : highestPriority === 2 ? 'urgent' : highestPriority === 1 ? 'scheduled' : undefined
-  }
-
-  // Aggregate waiting-review summary from dsh-gitea-dispatch (its #16).
-  //
-  // Counts **members**, not PRs: one session waits on exactly one PR, and the
-  // badge's number must mean "how many sessions in this folder need attention".
-  // `overdue` outranks `waiting` for the dot color, mirroring the schedule rule.
-  //
-  // The publisher keys its map by the host SessionId; the normalized form is
-  // accepted as well because that plugin's HTTP endpoint uses it (its link-line
-  // join needs one shared convention). Matching both keeps this side independent
-  // of which convention the installed publisher happens to emit.
-  let waitingReviewCount = 0
-  let waitingReviewState: 'waiting' | 'overdue' | undefined = undefined
-  if (waitingReviewSummary && sessionIds.length > 0) {
-    for (const id of sessionIds) {
-      const entry = waitingReviewSummary.get(id) ?? waitingReviewSummary.get(stripSessionPrefix(id))
-      if (entry === undefined) continue
-      waitingReviewCount += 1
-      if (entry.state === 'overdue') waitingReviewState = 'overdue'
-      else if (waitingReviewState === undefined) waitingReviewState = 'waiting'
-    }
-  }
-  
-  return {
-    running, approval, planReview, question, done, subagents,
-    scheduledSessions, scheduledCount, scheduleState,
-    waitingReviewCount, waitingReviewState,
-  }
 }
 
 /**

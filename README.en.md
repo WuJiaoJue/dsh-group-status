@@ -42,16 +42,29 @@ Fold any group that has live sessions; a badge appears after the folder name:
 |---|---|---|
 | Yellow dot | Pending approval / plan review / answer inside | warning (same as rows) |
 | Spinner | Running sessions inside, incl. running subagents | ongoing (`StateDot` animation) |
+| Green dot | Completed-unread sessions inside | done (same as the row) |
 | Clock | Scheduled tasks inside (data from dsh-later) | purple · orange (≤5 min) · red (overdue) |
 | List-pen | Sessions waiting for a PR review (data from dsh-gitea-dispatch) | amber · red (overdue) |
 
 Rules:
 
-- **Completed never reaches the badge**: `done` (completed-unread) is the child row's business — a folded row only hints at "needs you" and "running", so a group with nothing but completed sessions shows no badge at all. (Decision from `6db1fd3`: completed belongs to the session row, not the folder hint.)
-- **The count** = approvals + running + sessions with scheduled tasks + sessions waiting for review (**completed excluded**). Whenever a badge renders it carries the count, including a single-session `1`.
+- **Completed reaches the badge**: `done` (completed-unread) now shows a green dot while folded, reusing the same `StateDot` state as the session row; a group with nothing but completed sessions shows a badge just like any other.
+- **The count** = approvals + running + completed + sessions with scheduled tasks + sessions waiting for review. Whenever a badge renders it carries the count, including a single-session `1`.
 - **Hover details**: the folder row's hover card appends lines in the order `approval · plan review · answer · running · subagents · waiting review · scheduled tasks · completed`, e.g. `1 Waiting for answer · 1 Running`.
 - **Expanding defers to the rows**: the aggregate badge only renders while collapsed; expanded groups keep their per-row statuses with no duplication.
 - **Accessible**: the badge is `role="img"` with a localized `aria-label` (e.g. `1 Waiting for answer · 1 Running`) and the same text as its `title`.
+
+### Settings
+
+Settings → Plugins → **dsh-group-status** (the config form on the plugin's page):
+
+| Field | Default | Meaning |
+|---|---|---|
+| `showCompletedInBadge` | `true` | Whether the folded badge shows a green "completed" dot |
+
+Switching it off takes `done` out of the folded row's aggregate entirely — no green dot, no contribution to the badge count, and it no longer keeps the badge alive, so a group with nothing but completed sessions shows no badge again. **The green dot on a session row itself is unaffected**: that is row-level state, not a folder hint.
+
+Changes apply live, with no refresh. When the settings face cannot be read (e.g. the Host serves no settings service), it falls back to the default "show", matching the schema default — failing to read a config is not the user turning it off.
 
 ---
 
@@ -60,7 +73,7 @@ Rules:
 - **Visible when folded**: the aggregate only exists while collapsed; an expanded sidebar is pixel-identical to stock.
 - **Same source of truth as rows**: priority, colors and wording all reuse the row derivation and `StateDot`; blank and archived sessions are skipped.
 - **Cross-plugin aggregation** (optional): scheduled tasks from dsh-later, waiting PR reviews from dsh-gitea-dispatch — works fine with neither installed.
-- **Zero config**: no settings, works out of the box.
+- **Usable with zero config**: sensible defaults out of the box; the one setting, `showCompletedInBadge`, can drop the green "completed" dot from the folded badge.
 - **No stock files touched**: not a single file of the published `dsh-client-ui-workspace` is modified; all changes live in this repo's source, and the profile patch is two lines (add this package, disable the stock row).
 - **Localized**: follows the DSH UI language (中文 / English) by reusing the stock locale keys; only `status.waitingReview` and `status.scheduled` are new.
 

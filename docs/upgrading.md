@@ -25,9 +25,15 @@
 | 5 | `src/client/rows/WorkspaceBrowser.tsx` — `require('dsh-later/client')` / `require('dsh-gitea-dispatch/client')` | 可选消费跨插件摘要 hook，容忍未安装（`try/catch` 后保持 `undefined`） |
 | 6 | `src/client/cross-plugin-summary.ts` | **本仓库新增文件**（上游没有）：provider 侧摘要骨架，导出 `createSummaryStore` / `createSummaryRegistry` / `defaultCanPoll` / `entryFor` / `mapEquals` / `normalizeSessionId` / `summarizeGroup` |
 | 7 | `src/client/locales.ts` | 复用上游文案键；只新增了 `status.waitingReview` 与 `status.scheduled`（中 / 英） |
-| 8 | `package.json` | `dsh.client.external: ["dsh-later", "dsh-gitea-dispatch"]`；`icon` 字段；`test` / `test:node` / `test:spec` / `test:watch` 脚本与测试用 devDependencies |
+| 8 | `package.json` | `dsh.client.external: ["dsh-later", "dsh-gitea-dispatch"]`；`icon` 字段；`test` / `test:node` / `test:spec` / `test:watch` 脚本与测试用 devDependencies；`@deepseek-ai/schemastery` 依赖（宿主侧 `Config` 用） |
 | 9 | `vitest.config.ts`、`tests/support/`、`tests/group-status.client.spec.ts` | **本仓库新增**：让上游 spec 在独立仓库可跑（见下节），加一份属于本包的折叠聚合 spec |
 | 10 | `tests/cross-plugin-summary.node.test.mjs` | **本仓库新增**：模板模块的 12 条 `node --test` 用例（import 编译产物 `lib/types/client/cross-plugin-summary.js`，所以 `test:node` 先跑 `types`） |
+| 11 | `src/index.ts` — `name` / `Config` / `apply()` | **本仓库新增**：上游宿主侧是空 `apply()`；这里加 `Config`（schemastery `.volatile()`，字段 `showCompletedInBadge`）供宿主投影成设置页。这是宿主侧唯一的面，不承载行为 |
+| 12 | `src/client/badge-settings.ts` | **本仓库新增文件**（上游没有）：设置面快照 → 标准 props 源的适配、派生与引用稳定记忆 |
+| 13 | `src/client/index.ts` — `ConfigFormsLike` / `createBadgeSettingsSource()` / `ctx.inject(['configForms'], …)` / `GlobalStandardProps.useBadgeSettings` | 挂一个**恒在**的 `useBadgeSettings` 标准 props 源，再非阻塞地等 `configForms` 就绪并推入快照。寻址键是**条目 id**（`dsh-group-status`），不是 settings namespace |
+| 14 | `src/client/rows/Rows.tsx` — `ProjectRowItem.showCompleted` / `groupLiveBadge(group, t, showCompleted)` | 按设置决定 `done` 是否画绿点、是否计入数字、是否参与「显示徽标」判断 |
+| 15 | `src/client/rows/WorkspaceBrowser.tsx` — `SessionTreeProps` 增 `useBadgeSettings`、`ProjectRowItem` 增 `showCompleted` | 把设置 hook 从浏览器根透传到折叠行 |
+| 16 | `tests/badge-settings.client.spec.ts` | **本仓库新增**：解析与源契约用例（显式 false 才隐藏、引用稳定、无关变更不通知、设置面收回回落默认） |
 
 `cordis.patch.yml` 只有两条：`insert` 本包、`ui-workspace` `disabled: true`。升级不动它。
 
@@ -100,8 +106,10 @@
 3. 展开分组 → 徽标消失，子行自带状态；
 4. 组内有定时任务时出现时钟图标（紫 / 橙 / 红）；有等待评审时出现列表笔图标（琥珀 / 红）；
 5. 临时卸掉 dsh-later / dsh-gitea-dispatch → 图标消失但**不报错**、不空转；
-6. 浏览器 console 无报错；
-7. 中 / 英界面语言切换后文案跟随。
+6. **设置项**：设置 → 插件 → dsh-group-status → 关掉 `showCompletedInBadge` → 有已完成会话的分组收起后**不再**出现绿点、数字相应减少；再打开 → 绿点回来。改完**无需刷新**；
+7. **设置面缺失时**（把 `Config` 临时去掉再构建）→ 插件照常加载，徽标按默认「显示已完成」；console 无 `cannot get property … without inject` 一类报错；
+8. 浏览器 console 无报错；
+9. 中 / 英界面语言切换后文案跟随。
 
 ## 回滚
 

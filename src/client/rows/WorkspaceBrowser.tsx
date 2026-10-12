@@ -252,7 +252,7 @@ function workspaceGroupHalf(e: { clientY: number; currentTarget: HTMLElement }):
 type SessionTreeProps = Pick<
   WorkspaceBrowserProps,
   'useSessionStatus' | 'startSession' | 'open'
-  | 'insertWorkspaceBefore' | 't' | 'usePanelInfo'
+  | 'insertWorkspaceBefore' | 't' | 'usePanelInfo' | 'useBadgeSettings'
 > & PropsRenderSlots<
   | 'sidebar.workspaces.session.menu.item'
   | 'sidebar.workspaces.session.row.action'
@@ -322,9 +322,11 @@ function SessionTree({
   insertWorkspaceBefore,
   nestWorkspaces, groupExpansion, setGroupExpanded,
   setSessionOrder, home, t,
-  revealSessionId, onSessionRevealed, shortcuts,
+  revealSessionId, onSessionRevealed, shortcuts, useBadgeSettings,
 }: SessionTreeProps) {
   const panelActive = usePanelInfo(info => info.activePanelId !== null)
+  // 设置项 `showCompletedInBadge`：折叠徽标是否显示「已完成」绿点（默认显示）。
+  const showCompleted = useBadgeSettings(settings => settings.showCompletedInBadge)
   const statuses = useSessionStatus(s => s)
   const scheduleSummary = useScheduleSummaryHook?.()
   const waitingReviewSummary = useWaitingSummaryHook?.()
@@ -370,12 +372,17 @@ function SessionTree({
     return [...workspaces.map(workspace => workspace.workspaceId), UNGROUPED_KEY]
       .filter(key => groupExpansion[key] ?? ancestorKeys.has(key))
   }, [groupExpansion, parents, workspaces])
+  // P0-2 优化：全部分组都展开时，跨插件摘要不会被消费（P0-1 已跳过聚合），
+  // 显式传 undefined 避免 deriveGroups 内无意义的 Map 查找循环。
+  const allGroupsExpanded = expandedGroups.length >= workspaces.length + 1
+    && workspaces.every(w => expandedGroups.includes(w.workspaceId))
+    && expandedGroups.includes(UNGROUPED_KEY)
   const groups = useMemo(
     () => deriveGroups(list, workspaces, rowState, statuses, {
       expandedGroups,
       ungroupedOrder: ungroupedSessionIds,
-    }, waitingReviewSummary, scheduleSummary),
-    [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds, scheduleSummary, waitingReviewSummary],
+    }, allGroupsExpanded ? undefined : waitingReviewSummary, allGroupsExpanded ? undefined : scheduleSummary),
+    [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds, scheduleSummary, waitingReviewSummary, allGroupsExpanded],
   )
   useEffect(() => {
     for (let key = revealGroup; key !== undefined; key = parents.get(key)) {
@@ -535,6 +542,7 @@ function SessionTree({
           group={group}
           containsCurrentDescendant={currentAncestors.has(group.key)}
           home={home}
+          showCompleted={showCompleted}
           t={t}
           onToggle={() => {
             if (group.expanded) {
@@ -894,6 +902,7 @@ export function WorkspaceBrowser({
   useHostInfo,
   useShortcuts,
   useWorkspaceShortcuts,
+  useBadgeSettings,
   requestSearch,
   requestAddWorkspace,
   closeAddWorkspace,
@@ -1418,6 +1427,7 @@ export function WorkspaceBrowser({
             : (
               <SessionTree
                 usePanelInfo={usePanelInfo}
+                useBadgeSettings={useBadgeSettings}
                 list={list}
                 shortcuts={shortcuts}
                 useSessionStatus={useSessionStatus}

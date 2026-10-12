@@ -42,6 +42,7 @@ import {
   type WorkspaceBrowserInjected, type WorkspacePickerInjected,
 } from './contract/slots.ts'
 import { createWorkspaceShortcutControls, installWorkspaceShortcuts } from './shortcuts.ts'
+import { createBadgeSettingsSource, ENTRY_ID, type ResolvedBadgeSettings, type SettingsScopeLike } from './badge-settings.ts'
 import { UiWorkspaceService } from './navigation.ts'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
@@ -68,6 +69,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface GlobalStandardProps {
     /** Selector hook over the pure Workspace Controller snapshot. */
     useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>
+    /** Selector hook over this plugin's own settings face (badge preferences). */
+    useBadgeSettings: SnapshotSelectorHook<ResolvedBadgeSettings>
   }
 
   interface LocaleNamespaceMap {
@@ -84,6 +87,15 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
 
 /** Dictionary namespace owned by this plugin. */
 const NS = 'workspace'
+
+/**
+ * `configForms` 服务的最小结构面（宿主 `@deepseek-ai/dsh-client-ui-settings` 的
+ * 一部分）。此处按结构声明而非导入该包：本插件不需要设置页的其余能力，窄化的
+ * 形状让服务缺席时降级为一个 `undefined` 检查而非编译期依赖。
+ */
+interface ConfigFormsLike {
+  get(entryId: string): SettingsScopeLike
+}
 
 /**
  * Required services (cordis fiber inject). The target slots are declared by
@@ -121,6 +133,32 @@ export function apply(ctx: Context): void {
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
   const shortcutControls = createWorkspaceShortcutControls()
+
+  // 折叠徽标的显示偏好（`showCompletedInBadge`）。
+  //
+  // 源先挂上（**恒在**，值先是默认）：标准 props 的 hook 调用顺序必须稳定，晚挂或
+  // 摘掉 `useBadgeSettings` 都会改变顺序而崩渲染。设置面随后经 `ctx.inject` 接入，
+  // 只改源的值，不改源的存亡。
+  const badgeSettings = createBadgeSettingsSource()
+  ctx.slots.provideRoot({ hooks: { badgeSettings } })
+
+  // 等宿主设置服务就绪——**非阻塞**：`ctx.inject` 是嵌套插件，服务永不到达也只是设置
+  // 读不到（回落默认），本插件其余功能不受影响。这里不直接用 `ctx.get` 读：服务可能在
+  // 本插件之后才注册，那时读到的 undefined 会永久生效（设置被静默忽略直到刷新）。
+  //
+  // 寻址键是**条目 id**（`cordis.patch.yml` 的 `id: dsh-group-status`），不是 settings
+  // namespace——宿主 `describe()` 的 `ns` 即条目 id。
+  ctx.inject(['configForms'], (configCtx) => {
+    const forms = configCtx.get('configForms') as ConfigFormsLike | undefined
+    const scope: SettingsScopeLike | undefined =
+      forms !== undefined && typeof forms.get === 'function' ? forms.get(ENTRY_ID) : undefined
+    if (scope === undefined) return
+    badgeSettings.publish(scope.getSnapshot())
+    configCtx.effect(
+      () => scope.subscribe(() => { badgeSettings.publish(scope.getSnapshot()) }),
+      'dsh-group-status: badge settings',
+    )
+  })
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await sessions.search(query, signal)

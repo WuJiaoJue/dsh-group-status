@@ -11,13 +11,13 @@
  * session and workspace hover cards are suppressed while a menu is open.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { RefObject } from 'react'
 import clsx from 'clsx'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  HoverCard, IconArchiveOutlineRegular, IconClockOutlineRegular, IconEditOutlineRegular,
+  HoverCard, IconArchiveOutlineRegular, IconEditOutlineRegular,
   IconEllipsisOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
-  IconListPenOutlineRegular, IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
+  IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
   IconTriangleRightFillRegular, IconUnarchiveOutlineRegular, Menu, relativeTime, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
@@ -25,6 +25,7 @@ import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupLiveStatus, GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
+import { groupLiveBadge, hoverStatusLines } from './GroupBadge.tsx'
 import css from './Rows.module.css'
 
 /** The standard locale seat, prop-passed from the browser root. */
@@ -157,76 +158,7 @@ function createdLabel(createdAt: number, t: RowTranslate): string {
   return t('hover.created', { time: `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` })
 }
 
-/**
- * Accessible label for a folded group's aggregated status, reusing the
- * session-row locale keys so both surfaces read identically.
- */
-function groupLiveLabel(s: GroupLiveStatus, t: RowTranslate): string {
-  const parts: string[] = []
-  if (s.approval > 0) parts.push(`${s.approval} ${t('status.waitingApproval')}`)
-  if (s.planReview > 0) parts.push(`${s.planReview} ${t('status.planReview')}`)
-  if (s.question > 0) parts.push(`${s.question} ${t('status.waitingAnswer')}`)
-  if (s.running > 0) parts.push(`${s.running} ${t('status.running')}`)
-  if (s.subagents > 0) {
-    parts.push(t(s.subagents === 1 ? 'status.subagentsRunning.one' : 'status.subagentsRunning.other', { n: s.subagents }))
-  }
-  if (s.waitingReviewCount > 0) parts.push(`${s.waitingReviewCount} ${t('status.waitingReview')}`)
-  if (s.scheduledSessions > 0) parts.push(`${s.scheduledSessions} ${t('status.scheduled')}`)
-  if (s.done > 0) parts.push(`${s.done} ${t('status.completed')}`)
-  return parts.join(' · ')
-}
-
-/**
- * Aggregated live-status badge for a folded folder row. Dots reuse StateDot so
- * colors match session rows (warning = pending, ongoing = running).
- * Renders nothing while expanded or when nothing is pending/active/scheduled/waiting.
- *
- * Count matches the dots: pending + active + waiting-review + scheduled sessions
- * (`done` stays out of the badge — commit 6db1fd3 chose "completed" as the session
- * row's business, not the folder hint's).
- */
-function groupLiveBadge(group: GroupNode, t: RowTranslate): ReactNode {
-  const s = group.liveStatus
-  if (group.expanded || s === undefined) return null
-  const pending = s.approval + s.planReview + s.question
-  const active = s.running + s.subagents
-  const scheduled = s.scheduledSessions
-  const hasWaitingReview = s.waitingReviewCount > 0
-  // 只在有 pending / active / 定时任务 / 等待评审时显示徽标（done 不在徽标显示）
-  if (pending === 0 && active === 0 && scheduled === 0 && !hasWaitingReview) return null
-  const label = groupLiveLabel(s, t)
-  const dots: ReactNode[] = []
-  if (pending > 0) dots.push(<StateDot key="warn" state="warning" />)
-  if (active > 0) dots.push(<StateDot key="run" state="ongoing" />)
-  // 定时任务图标（紫色；urgent 橙 / overdue 红）。与等待评审**用不同图标**——
-  // 两者同属"在等"的语义，只靠颜色区分对色盲用户不可用。
-  if (scheduled > 0) {
-    const stateColor = s.scheduleState === 'overdue' ? '#ef4444' : s.scheduleState === 'urgent' ? '#f97316' : '#a855f7'
-    dots.push(
-      <span key="schedule" style={{ color: stateColor, display: 'inline-flex', alignItems: 'center' }}>
-        <IconClockOutlineRegular size={14} />
-      </span>
-    )
-  }
-  // 等待评审图标（琥珀色；超时转红）。数据来自 dsh-gitea-dispatch 的
-  // useWaitingSummary()——本插件不自己轮询该端点（其 store 是唯一轮询方）。
-  if (hasWaitingReview) {
-    const stateColor = s.waitingReviewState === 'overdue' ? '#ef4444' : '#eab308'
-    dots.push(
-      <span key="waiting-review" style={{ color: stateColor, display: 'inline-flex', alignItems: 'center' }}>
-        <IconListPenOutlineRegular size={14} />
-      </span>
-    )
-  }
-  // 数字统计 pending + active + 定时任务会话 + 等待评审会话（与 dot 一致）
-  const count = pending + active + scheduled + s.waitingReviewCount
-  return (
-    <span className={css.groupBadge} role="img" aria-label={label} title={label}>
-      {dots}
-      <span className={css.groupBadgeCount}>{count}</span>
-    </span>
-  )
-}
+// groupLiveBadge and groupLiveLabel are fork-owned — imported from ./GroupBadge.tsx.
 
 /** Hover-card body: workspace title, display directory path, absolute creation time. */
 function WorkspaceHoverContent({ label, cwd, createdAt, status, t }: {
@@ -237,26 +169,8 @@ function WorkspaceHoverContent({ label, cwd, createdAt, status, t }: {
   status: GroupLiveStatus | undefined
   t: RowTranslate
 }) {
-  const lines: { state: 'warning' | 'ongoing' | 'done'; text: string }[] = []
-  if (status !== undefined) {
-    if (status.approval > 0) lines.push({ state: 'warning', text: `${status.approval} ${t('status.waitingApproval')}` })
-    if (status.planReview > 0) lines.push({ state: 'warning', text: `${status.planReview} ${t('status.planReview')}` })
-    if (status.question > 0) lines.push({ state: 'warning', text: `${status.question} ${t('status.waitingAnswer')}` })
-    if (status.running > 0) lines.push({ state: 'ongoing', text: `${status.running} ${t('status.running')}` })
-    if (status.subagents > 0) {
-      lines.push({
-        state: 'ongoing',
-        text: t(status.subagents === 1 ? 'status.subagentsRunning.one' : 'status.subagentsRunning.other', { n: status.subagents }),
-      })
-    }
-    if (status.waitingReviewCount > 0) {
-      lines.push({ state: 'warning', text: `${status.waitingReviewCount} ${t('status.waitingReview')}` })
-    }
-    if (status.scheduledSessions > 0) {
-      lines.push({ state: 'warning', text: `${status.scheduledSessions} ${t('status.scheduled')}` })
-    }
-    if (status.done > 0) lines.push({ state: 'done', text: `${status.done} ${t('status.completed')}` })
-  }
+  // Fork-owned: status detail lines computed by GroupBadge.tsx.
+  const lines = hoverStatusLines(status, t)
   return (
     <div className={css.hoverContent}>
       <div className={css.hoverTitle}>{label}</div>
@@ -315,7 +229,7 @@ function rowHalf(e: { clientY: number; currentTarget: HTMLElement }): 'before' |
  * @param props.t - the browser root's locale seat.
  * @returns the row element.
  */
-export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, t }: {
+export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, showCompleted = true, t }: {
   group: GroupNode
   newShortcut?: ShortcutCatalogEntry | undefined
   containsCurrentDescendant?: boolean
@@ -327,6 +241,8 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   drag?: WorkspaceRowDragProps | undefined
   /** Host account home; POSIX home-rooted hover paths display as `~`. */
   home?: string | undefined
+  /** 设置项 `showCompletedInBadge`：折叠徽标是否显示「已完成」绿点。 */
+  showCompleted?: boolean | undefined
   t: RowTranslate
 }) {
   const row = group
@@ -364,7 +280,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
       <span className={css.projectText}>
         <span className={css.title}>{label}</span>
       </span>
-      {groupLiveBadge(row, t)}
+      {groupLiveBadge(row, t, showCompleted)}
       <span className={css.rowActions}>
         {actions !== undefined && (
           <Menu

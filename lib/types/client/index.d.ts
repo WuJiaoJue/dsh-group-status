@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots';
+import { type ResolvedBadgeSettings } from './badge-settings.ts';
 import { type WorkspaceKey } from './locales.ts';
 export type { UiWorkspace } from './navigation.ts';
 export type { DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected, MenuOpenState, RowToast, SessionRenameTarget, SessionRowOwnerProps, UseMenuOpenState, WorkspaceBrowserInjected, SessionRowScheduleOwnerProps, WorkspaceBrowserProps, WorkspacePickerInjected, WorkspacePickerProps, } from './contract/slots.ts';
@@ -9,6 +10,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface GlobalStandardProps {
         /** Selector hook over the pure Workspace Controller snapshot. */
         useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>;
+        /** Selector hook over this plugin's own settings face (badge preferences). */
+        useBadgeSettings: SnapshotSelectorHook<ResolvedBadgeSettings>;
     }
     interface LocaleNamespaceMap {
         /** The workspace browsing region and pick/create flow copy. */

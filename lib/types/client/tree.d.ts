@@ -7,6 +7,8 @@ import { type SessionListState, type SessionSearchResultItem } from '@deepseek-a
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
+import { EMPTY_LIVE_STATUS, summarizeGroupStatus, type GroupLiveStatus, type ScheduleSummaryEntry, type ScheduleSummaryMap, type WaitingReviewSummaryEntry, type WaitingReviewSummaryMap } from './group-status.ts';
+export { EMPTY_LIVE_STATUS, summarizeGroupStatus, type GroupLiveStatus, type ScheduleSummaryEntry, type ScheduleSummaryMap, type WaitingReviewSummaryEntry, type WaitingReviewSummaryMap, };
 /** Group key for Sessions outside every Workspace. */
 export declare const UNGROUPED_KEY = "";
 /**
@@ -41,67 +43,6 @@ export interface SessionNode {
 }
 /** Session order selected by the Workspace browser. */
 export type SessionOrderBy = 'manual' | 'updated';
-/**
- * Aggregated live-session counts for one group, computed over all members so a
- * folded folder row can hint at hidden activity.
- */
-export interface GroupLiveStatus {
-    /** Members currently running. */
-    running: number;
-    /** Members awaiting tool approval. */
-    approval: number;
-    /** Members awaiting plan review. */
-    planReview: number;
-    /** Members awaiting a question answer. */
-    question: number;
-    /** Members finished and not yet opened (the green "done" reminder). */
-    done: number;
-    /** Running direct children across members. */
-    subagents: number;
-    /** Members with scheduled tasks (from dsh-later). */
-    scheduledSessions: number;
-    /** Total scheduled tasks across members (including paused). */
-    scheduledCount: number;
-    /** Highest-priority schedule state: overdue > urgent > scheduled. */
-    scheduleState: 'scheduled' | 'urgent' | 'overdue' | undefined;
-    /** Members waiting for CI review of their PR (from dsh-gitea-dispatch). */
-    waitingReviewCount: number;
-    /** Highest-priority waiting state across members: overdue > waiting. */
-    waitingReviewState: 'waiting' | 'overdue' | undefined;
-}
-/**
- * One session's waiting-review fact, as published by dsh-gitea-dispatch's
- * `useWaitingSummary()` (issue: dsh-gitea-dispatch#16).
- *
- * Structurally typed on purpose: this plugin must not depend on the other
- * plugin's types, and must degrade to "unsupported" when it is absent.
- */
-export interface WaitingReviewSummaryEntry {
-    /** The PR number that session is waiting on. */
-    readonly prNumber: number;
-    /** `overdue` once the CI wait window has closed. */
-    readonly state: 'waiting' | 'overdue';
-}
-/** Session id → that session's waiting-review fact (no entry = not waiting). */
-export type WaitingReviewSummaryMap = ReadonlyMap<string, WaitingReviewSummaryEntry>;
-/**
- * One session's schedule fact, as published by dsh-later's `useScheduleSummary()`.
- *
- * Structurally typed for the same reason as {@link WaitingReviewSummaryEntry}:
- * no compile-time dependency on the other plugin, and absence degrades to zero.
- */
-export interface ScheduleSummaryEntry {
-    /** Scheduled tasks on that session (paused ones included). */
-    readonly count: number;
-    /** How many of those are paused. */
-    readonly pausedCount: number;
-    /** Earliest next trigger (epoch ms); absent when every task is paused. */
-    readonly nextAt?: number;
-    /** Highest-priority state at snapshot time. */
-    readonly state: 'scheduled' | 'urgent' | 'overdue';
-}
-/** Session id → that session's schedule fact (no entry = no scheduled tasks). */
-export type ScheduleSummaryMap = ReadonlyMap<string, ScheduleSummaryEntry>;
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {
     /** Group key: the workspace id or {@link UNGROUPED_KEY}. */
@@ -264,5 +205,4 @@ export declare function deriveSearchResults(list: SessionListState, workspaces: 
  * @returns the owning parent path, or undefined when no parent contains the Workspace.
  */
 export declare function owningParentFolder(path: string, parents: readonly string[]): string | undefined;
-export {};
 //# sourceMappingURL=tree.d.ts.map

@@ -358,21 +358,21 @@
 .hoverTitle {
   font-size: 14px;
   line-height: 20px;
-  color: #FFFFFF;
+  color: var(--dsw-alias-label-primary);
   overflow-wrap: break-word;
 }
 
 .hoverPath {
   font-size: 12px;
   line-height: 16px;
-  color: #CFD3D6;
+  color: var(--dsw-alias-label-secondary);
   word-break: break-all;
 }
 
 .hoverTime {
   font-size: 12px;
   line-height: 16px;
-  color: #CFD3D6;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .hoverStatus {
@@ -381,7 +381,7 @@
   gap: 8px;
   font-size: 12px;
   line-height: 20px;
-  color: #ADB2B8;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 /* Aggregated live-status badge on a folded workspace folder row: StateDot
@@ -403,6 +403,16 @@
   border-radius: 6px;
   padding: 0 3px;
   color: var(--dsw-alias-label-tertiary);
+}
+
+/* P2-2: 紧急状态脉冲动画 — overdue/urgent 时徽标轻微呼吸，引起注意但不干扰。 */
+@keyframes groupBadgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.groupBadgeUrgent {
+  animation: groupBadgePulse 2s ease-in-out infinite;
 }
 
 /* Archive glyph rides the status row's text color; slight inset aligns it with the 6px status dots. */
@@ -430,8 +440,8 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Chevrons ride the caption grey (#ADB2B8); the folder glyph stays one step
-   darker (tertiary, #81858C) per the cell spec. */
+/* Chevrons ride the caption grey (label-tertiary); the folder glyph stays one
+   step darker per the cell spec. */
 .chevron {
   color: var(--dsw-alias-label-caption);
 }

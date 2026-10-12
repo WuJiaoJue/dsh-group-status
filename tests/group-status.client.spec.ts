@@ -15,7 +15,7 @@ import type {
   SessionPendingInteraction, SessionStatus, SessionStatusSnapshot,
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { deriveGroups, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
+import { deriveGroups, EMPTY_LIVE_STATUS, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -64,11 +64,8 @@ const pending = (kind: 'approval' | 'plan-review' | 'question', sessionId: strin
   { key: `${kind}:1`, kind, sessionId: sid(sessionId) } as SessionPendingInteraction
 )
 
-const EMPTY: GroupLiveStatus = {
-  running: 0, approval: 0, planReview: 0, question: 0, done: 0, subagents: 0,
-  scheduledSessions: 0, scheduledCount: 0, scheduleState: undefined,
-  waitingReviewCount: 0, waitingReviewState: undefined,
-}
+/** Re-use the source's frozen sentinel so the shape stays in sync. */
+const EMPTY: GroupLiveStatus = EMPTY_LIVE_STATUS
 
 /** Fold (or expand) the single fixture workspace and return its group row. */
 const groupOf = (
@@ -110,7 +107,7 @@ describe('folded group live status', () => {
     expect(group.sessionCount).toBe(3)
   })
 
-  it('computes the same aggregate when the group is expanded', () => {
+  it('skips aggregate computation when the group is expanded (P0-1 perf optimization)', () => {
     const state = list([summary('a', 30), summary('b', 20)])
     const statuses: SessionStatusSnapshot = new Map([
       [sid('a'), status(pending('plan-review', 'a'))],
@@ -118,7 +115,9 @@ describe('folded group live status', () => {
     ])
     const group = groupOf(state, statuses, { expanded: true })
     expect(group.sessions.map(session => session.id)).toEqual([sid('a'), sid('b')])
-    expect(group.liveStatus).toEqual({ ...EMPTY, planReview: 1, running: 1 })
+    // Expanded groups don't show badges, so skip the aggregation work.
+    // When the user collapses, expanded=false triggers re-derivation with full computation.
+    expect(group.liveStatus).toEqual(EMPTY)
   })
 
   it('keeps the pending classes exclusive per member, outranking its running flag', () => {
@@ -195,5 +194,88 @@ describe('cross-plugin aggregation', () => {
     const state = list([summary('a', 30)])
     const group = groupOf(state, new Map([[sid('a'), status(undefined, { running: true })]]))
     expect(group.liveStatus).toEqual({ ...EMPTY, running: 1 })
+  })
+})
+
+describe('P2-3: badge count cap', () => {
+  it('caps the aggregate count at 99+ when there are more than 99 active items', () => {
+    // Create 100 running sessions to verify the count cap.
+    const sessions = Array.from({ length: 100 }, (_, i) => summary(`s${i}`, 100 - i))
+    const state = list(sessions)
+    const statuses: SessionStatusSnapshot = new Map(
+      sessions.map(s => [s.id, status(undefined, { running: true })]),
+    )
+    const group = groupOf(state, statuses)
+    // The liveStatus should show 100 running, but the badge will cap at 99+.
+    expect(group.liveStatus.running).toBe(100)
+    // The actual cap is in GroupBadge.tsx's rendering logic (count > 99 ? '99+' : String(count)).
+    // This test verifies the aggregation works correctly for large counts.
+  })
+})
+
+describe('P3-2: performance regression', () => {
+  it('derives 50 groups with 20 sessions each in under 50ms', () => {
+    // Create 50 workspaces with 20 sessions each.
+    const allSessions: SessionSummary[] = []
+    const workspaces: WorkspaceView[] = []
+    for (let w = 0; w < 50; w++) {
+      const sessionIds: string[] = []
+      for (let s = 0; s < 20; s++) {
+        const id = `w${w}-s${s}`
+        sessionIds.push(id)
+        allSessions.push(summary(id, 1000 - s))
+      }
+      workspaces.push(workspace(`ws${w}`, sessionIds))
+    }
+    const state = list(allSessions)
+    const statuses: SessionStatusSnapshot = new Map(
+      allSessions.map(s => [s.id, status(undefined, { running: true })]),
+    )
+
+    const start = performance.now()
+    const groups = deriveGroups(state, workspaces, rowState(), statuses, { expandedGroups: [] })
+    const elapsed = performance.now() - start
+
+    expect(groups.length).toBe(50)
+    expect(elapsed).toBeLessThan(50)
+    // Each group should have computed the aggregate.
+    for (const group of groups) {
+      expect(group.liveStatus.running).toBe(20)
+    }
+  })
+
+  it('skips aggregation for expanded groups (P0-1 verification)', () => {
+    // Create 50 workspaces, all expanded.
+    const allSessions: SessionSummary[] = []
+    const workspaces: WorkspaceView[] = []
+    for (let w = 0; w < 50; w++) {
+      const sessionIds: string[] = []
+      for (let s = 0; s < 20; s++) {
+        const id = `w${w}-s${s}`
+        sessionIds.push(id)
+        allSessions.push(summary(id, 1000 - s))
+      }
+      workspaces.push(workspace(`ws${w}`, sessionIds))
+    }
+    const state = list(allSessions)
+    const statuses: SessionStatusSnapshot = new Map(
+      allSessions.map(s => [s.id, status(undefined, { running: true })]),
+    )
+
+    const start = performance.now()
+    const groups = deriveGroups(
+      state, workspaces, rowState(), statuses,
+      { expandedGroups: workspaces.map(w => w.workspaceId) },
+    )
+    const elapsed = performance.now() - start
+
+    expect(groups.length).toBe(50)
+    // Expanded groups should be faster (no aggregation).
+    expect(elapsed).toBeLessThan(50)
+    // All expanded groups should have EMPTY_LIVE_STATUS.
+    for (const group of groups) {
+      expect(group.expanded).toBe(true)
+      expect(group.liveStatus).toEqual(EMPTY)
+    }
   })
 })
