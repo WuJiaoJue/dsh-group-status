@@ -107,11 +107,18 @@ The working shape is: copy the template into the provider → the provider calls
 
 ### Install into DSH
 
-This package is a **fork override**: it registers the same slots as the stock `dsh-client-ui-workspace` and disables the stock row (patch in `cordis.patch.yml`). Build artifacts are committed, so installing from GitHub needs no local build:
+**npm install (recommended, pre-built, no auth required):**
+
+```bash
+dsh plugin --profile web add dsh-group-status
+# Takes effect after restarting dsh web (the whole sidebar package is swapped)
+```
+
+Or install from GitHub:
 
 ```bash
 dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
-# Takes effect after restarting dsh web (the whole sidebar package is swapped)
+# restart dsh web
 ```
 
 For local development, link a checkout and rebuild as you edit `src/`:

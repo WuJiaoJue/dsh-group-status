@@ -107,11 +107,18 @@
 
 ### 安装到 DSH
 
-本包是一个 **fork 覆盖包**：注册与官方 `dsh-client-ui-workspace` 相同的槽位，并把官方那一行 disable（补丁见 `cordis.patch.yml`）。构建产物随仓库提交，从 GitHub 直接装即可，不需要本地构建：
+**npm 安装（推荐，预构建产物，无需授权）：**
+
+```bash
+dsh plugin --profile web add dsh-group-status
+# 重启 dsh web 后生效（侧栏是整包替换，需重新生成浏览器模块）
+```
+
+或者从 GitHub 安装：
 
 ```bash
 dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
-# 重启 dsh web 后生效（侧栏是整包替换，需重新生成浏览器模块）
+# 重启 dsh web 后生效
 ```
 
 本机开发时用 link，改完 `src/` 重建即可生效：
