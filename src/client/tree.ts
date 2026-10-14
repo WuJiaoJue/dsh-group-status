@@ -17,6 +17,7 @@ import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 // Re-exported below so existing imports from `tree.ts` keep working.
 import {
   EMPTY_LIVE_STATUS,
+  mergeLiveStatus,
   summarizeGroupStatus,
   type GroupLiveStatus,
   type ScheduleSummaryEntry,
@@ -29,6 +30,7 @@ import {
 // don't need to change their import paths.
 export {
   EMPTY_LIVE_STATUS,
+  mergeLiveStatus,
   summarizeGroupStatus,
   type GroupLiveStatus,
   type ScheduleSummaryEntry,

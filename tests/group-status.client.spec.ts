@@ -15,7 +15,7 @@ import type {
   SessionPendingInteraction, SessionStatus, SessionStatusSnapshot,
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { deriveGroups, EMPTY_LIVE_STATUS, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
+import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -277,5 +277,55 @@ describe('P3-2: performance regression', () => {
       expect(group.expanded).toBe(true)
       expect(group.liveStatus).toEqual(EMPTY)
     }
+  })
+})
+
+describe('mergeLiveStatus', () => {
+  it('sums numeric counters', () => {
+    const a: GroupLiveStatus = {
+      running: 1, approval: 2, planReview: 3, question: 4, done: 5, subagents: 6,
+      scheduledSessions: 7, scheduledCount: 8, scheduleState: 'scheduled',
+      waitingReviewCount: 9, waitingReviewState: 'waiting',
+    }
+    const b: GroupLiveStatus = {
+      running: 10, approval: 20, planReview: 30, question: 40, done: 50, subagents: 60,
+      scheduledSessions: 70, scheduledCount: 80, scheduleState: 'urgent',
+      waitingReviewCount: 90, waitingReviewState: 'overdue',
+    }
+    const merged = mergeLiveStatus(a, b)
+    expect(merged.running).toBe(11)
+    expect(merged.approval).toBe(22)
+    expect(merged.planReview).toBe(33)
+    expect(merged.question).toBe(44)
+    expect(merged.done).toBe(55)
+    expect(merged.subagents).toBe(66)
+    expect(merged.scheduledSessions).toBe(77)
+    expect(merged.scheduledCount).toBe(88)
+    expect(merged.waitingReviewCount).toBe(99)
+  })
+
+  it('takes highest-priority schedule state (overdue > urgent > scheduled)', () => {
+    expect(mergeLiveStatus(EMPTY, { ...EMPTY, scheduleState: 'scheduled' }).scheduleState).toBe('scheduled')
+    expect(mergeLiveStatus({ ...EMPTY, scheduleState: 'scheduled' }, { ...EMPTY, scheduleState: 'urgent' }).scheduleState).toBe('urgent')
+    expect(mergeLiveStatus({ ...EMPTY, scheduleState: 'urgent' }, { ...EMPTY, scheduleState: 'overdue' }).scheduleState).toBe('overdue')
+    expect(mergeLiveStatus({ ...EMPTY, scheduleState: 'overdue' }, { ...EMPTY, scheduleState: 'scheduled' }).scheduleState).toBe('overdue')
+    expect(mergeLiveStatus(EMPTY, EMPTY).scheduleState).toBeUndefined()
+  })
+
+  it('takes highest-priority waiting-review state (overdue > waiting)', () => {
+    expect(mergeLiveStatus(EMPTY, { ...EMPTY, waitingReviewState: 'waiting' }).waitingReviewState).toBe('waiting')
+    expect(mergeLiveStatus({ ...EMPTY, waitingReviewState: 'waiting' }, { ...EMPTY, waitingReviewState: 'overdue' }).waitingReviewState).toBe('overdue')
+    expect(mergeLiveStatus({ ...EMPTY, waitingReviewState: 'overdue' }, { ...EMPTY, waitingReviewState: 'waiting' }).waitingReviewState).toBe('overdue')
+    expect(mergeLiveStatus(EMPTY, EMPTY).waitingReviewState).toBeUndefined()
+  })
+
+  it('handles merging with EMPTY_LIVE_STATUS', () => {
+    const status: GroupLiveStatus = {
+      running: 5, approval: 3, planReview: 0, question: 1, done: 2, subagents: 4,
+      scheduledSessions: 1, scheduledCount: 3, scheduleState: 'urgent',
+      waitingReviewCount: 2, waitingReviewState: 'waiting',
+    }
+    const merged = mergeLiveStatus(status, EMPTY)
+    expect(merged).toEqual(status)
   })
 })
