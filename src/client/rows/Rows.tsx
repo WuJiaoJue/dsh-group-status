@@ -25,7 +25,7 @@ import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupLiveStatus, GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
-import { groupLiveBadge, hoverStatusLines } from './GroupBadge.tsx'
+import { hoverStatusLines } from './GroupBadge.tsx'
 import css from './Rows.module.css'
 
 /** The standard locale seat, prop-passed from the browser root. */
@@ -161,16 +161,18 @@ function createdLabel(createdAt: number, t: RowTranslate): string {
 // groupLiveBadge and groupLiveLabel are fork-owned — imported from ./GroupBadge.tsx.
 
 /** Hover-card body: workspace title, display directory path, absolute creation time. */
-function WorkspaceHoverContent({ label, cwd, createdAt, status, t }: {
+function WorkspaceHoverContent({ label, cwd, createdAt, status, settings, t }: {
   label: string
   cwd: string | undefined
   createdAt: number
   /** Aggregated member status, supplied only while the group is folded. */
   status: GroupLiveStatus | undefined
+  /** 徽标设置：悬停明细按来源过滤；`showHoverDetails=false` 时整段为空。 */
+  settings: import('../badge-settings.ts').ResolvedBadgeSettings
   t: RowTranslate
 }) {
   // Fork-owned: status detail lines computed by GroupBadge.tsx.
-  const lines = hoverStatusLines(status, t)
+  const lines = hoverStatusLines(status, t, settings)
   return (
     <div className={css.hoverContent}>
       <div className={css.hoverTitle}>{label}</div>
@@ -229,7 +231,7 @@ function rowHalf(e: { clientY: number; currentTarget: HTMLElement }): 'before' |
  * @param props.t - the browser root's locale seat.
  * @returns the row element.
  */
-export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, showCompleted = true, t }: {
+export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, settings, t }: {
   group: GroupNode
   newShortcut?: ShortcutCatalogEntry | undefined
   containsCurrentDescendant?: boolean
@@ -241,8 +243,8 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   drag?: WorkspaceRowDragProps | undefined
   /** Host account home; POSIX home-rooted hover paths display as `~`. */
   home?: string | undefined
-  /** 设置项 `showCompletedInBadge`：折叠徽标是否显示「已完成」绿点。 */
-  showCompleted?: boolean | undefined
+  /** 徽标设置：各来源显隐、悬停明细、数字样式。 */
+  settings: import('../badge-settings.ts').ResolvedBadgeSettings
   t: RowTranslate
 }) {
   const row = group
@@ -280,7 +282,6 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
       <span className={css.projectText}>
         <span className={css.title}>{label}</span>
       </span>
-      {groupLiveBadge(row, t, showCompleted)}
       <span className={css.rowActions}>
         {actions !== undefined && (
           <Menu
@@ -334,6 +335,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
         cwd={row.cwd === undefined ? undefined : abbreviateHomePath(row.cwd, home)}
         createdAt={row.createdAt}
         status={row.expanded ? undefined : row.liveStatus}
+        settings={settings}
         t={t}
       />}
       openDelayMs={800}
