@@ -71,10 +71,10 @@ export function withGroupBadge<P extends { group: GroupNode; settings: ResolvedB
     const groupWithStatus: GroupNode = { ...group, liveStatus }
 
     return (
-      <>
+      <div style={{ display: 'contents' }}>
         <ProjectRowItem {...(restProps as unknown as P)} group={groupWithStatus} settings={badgeSettings} t={t} />
         {groupLiveBadge(groupWithStatus, t, badgeSettings)}
-      </>
+      </div>
     )
   }
 
