@@ -637,7 +637,7 @@ function SessionTree({
             {childRows}
           </div>
         )}
-        {sessions.map((node) => {
+        {group.expanded && sessions.map((node) => {
         // Session drag never leaves its browser-local account, and pinned
         // rows reorder only within their leading pinned block.
           const sameGroupDrag = drag !== null && drag.accountKey === group.key
