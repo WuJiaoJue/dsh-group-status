@@ -4,9 +4,11 @@
  *
  * The vendored upstream specs cannot run here — `@deepseek-ai/dsh-client-test-runtime`
  * deep-imports sources that DSH does not publish (see `vitest.config.ts`) — and
- * the vendored `tests/rows.client.spec.tsx` is therefore excluded. This spec
- * covers the same derivation through `deriveGroups`, which is the module's public
- * surface and needs no renderer runtime.
+ * the vendored `tests/rows.client.spec.tsx` is therefore excluded. This spec drives
+ * the same pipeline the sidebar does — `deriveGroups` → `directStatusesForGroups` →
+ * `aggregateGroupStatuses` — which is the module's public surface and needs no
+ * renderer runtime. It deliberately never assigns a status by hand: a copy of the
+ * wiring inside a test can only ever certify the copy.
  */
 import { describe, expect, it } from 'vitest'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -16,7 +18,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, owningParentFolder, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
-import { aggregateGroupStatuses, directStatusesForGroups, summarizeGroupStatus } from '../src/client/group-status.ts'
+import { aggregateGroupStatuses, directStatusesForGroups } from '../src/client/group-status.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -86,14 +88,13 @@ const groupOf = (
     statuses,
     { expandedGroups: options.expanded === true ? ['alpha'] : [] },
   )
-  // Compute liveStatus externally (as the HOC does)
-  if (group.expanded) {
-    group.liveStatus = EMPTY_LIVE_STATUS
-  } else {
-    const memberIds = group.sessions.map(s => s.id)
-    group.liveStatus = summarizeGroupStatus(group.sessions, memberIds, options.waiting, options.schedule)
-  }
-  return group!
+  // Run the production pipeline, never a hand-written copy of it: the version of
+  // this helper before that pipeline was extractable patched `liveStatus` itself,
+  // and the copy it kept encoded a semantics bug (expanded → empty) that no
+  // production test could see.
+  const direct = directStatusesForGroups([group!], options.waiting, options.schedule)
+  const aggregated = aggregateGroupStatuses(direct, new Map([[undefined, [group!]]]))
+  return { ...group!, liveStatus: aggregated.get(group!.key) }
 }
 
 describe('folded group live status', () => {
@@ -108,13 +109,13 @@ describe('folded group live status', () => {
     expect(group.expanded).toBe(false)
     // The fork's whole point: the folded row carries the aggregate…
     expect(group.liveStatus).toEqual({ ...EMPTY, approval: 1, running: 1, done: 1 })
-    // Sessions are always populated now (for HOC badge computation).
-    // The rendering logic in WorkspaceBrowser.tsx still checks `expanded` before rendering rows.
+    // Members are always derived — the aggregator reads them whether or not the folder
+    // is open. Which rows get rendered is decided in WorkspaceBrowser.tsx, not here.
     expect(group.sessions.length).toBe(3)
     expect(group.sessionCount).toBe(3)
   })
 
-  it('skips aggregate computation when the group is expanded (P0-1 perf optimization)', () => {
+  it('still measures an expanded group, because a collapsed parent consumes the value', () => {
     const state = list([summary('a', 30), summary('b', 20)])
     const statuses: SessionStatusSnapshot = new Map([
       [sid('a'), status(pending('plan-review', 'a'))],
@@ -122,9 +123,10 @@ describe('folded group live status', () => {
     ])
     const group = groupOf(state, statuses, { expanded: true })
     expect(group.sessions.map(session => session.id)).toEqual([sid('a'), sid('b')])
-    // Expanded groups don't show badges, so skip the aggregation work.
-    // When the user collapses, expanded=false triggers re-derivation with full computation.
-    expect(group.liveStatus).toEqual(EMPTY)
+    // An expanded row renders no badge of its own — that is a rendering decision in
+    // groupLiveBadge. Zeroing its status is what made every collapsed parent undercount
+    // by the size of its expanded descendants, so the number stays real.
+    expect(group.liveStatus).toEqual({ ...EMPTY, planReview: 1, running: 1 })
   })
 
   it('keeps the pending classes exclusive per member, outranking its running flag', () => {
@@ -221,8 +223,8 @@ describe('P2-3: badge count cap', () => {
 })
 
 describe('P3-2: performance regression', () => {
-  it('derives 50 groups with 20 sessions each in under 50ms', () => {
-    // Create 50 workspaces with 20 sessions each.
+  /** 50 workspaces × 20 running sessions — the shape that makes the badge cost measurable. */
+  const wide = () => {
     const allSessions: SessionSummary[] = []
     const workspaces: WorkspaceView[] = []
     for (let w = 0; w < 50; w++) {
@@ -238,52 +240,60 @@ describe('P3-2: performance regression', () => {
     const statuses: SessionStatusSnapshot = new Map(
       allSessions.map(s => [s.id, status(undefined, { running: true })]),
     )
+    return { state, statuses, workspaces }
+  }
 
+  it('derives 50 groups with 20 sessions each in under 50ms', () => {
+    const { state, statuses, workspaces } = wide()
     const start = performance.now()
     const groups = deriveGroups(state, workspaces, rowState(), statuses, { expandedGroups: [] })
     const elapsed = performance.now() - start
 
     expect(groups.length).toBe(50)
     expect(elapsed).toBeLessThan(50)
-    // Each group should have sessions populated (for HOC to compute badge).
     for (const group of groups) {
       expect(group.sessions.length).toBe(20)
     }
   })
 
-  it('skips aggregation for expanded groups (P0-1 verification)', () => {
-    // Create 50 workspaces, all expanded.
-    const allSessions: SessionSummary[] = []
-    const workspaces: WorkspaceView[] = []
-    for (let w = 0; w < 50; w++) {
-      const sessionIds: string[] = []
-      for (let s = 0; s < 20; s++) {
-        const id = `w${w}-s${s}`
-        sessionIds.push(id)
-        allSessions.push(summary(id, 1000 - s))
-      }
-      workspaces.push(workspace(`ws${w}`, sessionIds))
-    }
-    const state = list(allSessions)
-    const statuses: SessionStatusSnapshot = new Map(
-      allSessions.map(s => [s.id, status(undefined, { running: true })]),
-    )
+  // The badge cost moved out of deriveGroups together with the aggregation, so it
+  // needs its own guard — the two tests above would have stayed green through the
+  // whole PR #10 regression because deriveGroups no longer computes anything here.
+  it('aggregates 50 groups in under 50ms with every folder collapsed', () => {
+    const { state, statuses, workspaces } = wide()
+    const groups = deriveGroups(state, workspaces, rowState(), statuses, { expandedGroups: [] })
 
     const start = performance.now()
+    const aggregated = aggregateGroupStatuses(
+      directStatusesForGroups(groups),
+      new Map([[undefined, groups]]),
+    )
+    const elapsed = performance.now() - start
+
+    expect(aggregated.size).toBe(50)
+    expect(aggregated.get('ws0')?.running).toBe(20)
+    expect(elapsed).toBeLessThan(50)
+  })
+
+  it('aggregates 50 groups in under 50ms with every folder expanded', () => {
+    // The pessimistic case for measuring expanded groups: nothing renders a badge,
+    // yet every group is still counted for the sake of any collapsed ancestor.
+    const { state, statuses, workspaces } = wide()
     const groups = deriveGroups(
       state, workspaces, rowState(), statuses,
       { expandedGroups: workspaces.map(w => w.workspaceId) },
     )
+
+    const start = performance.now()
+    const aggregated = aggregateGroupStatuses(
+      directStatusesForGroups(groups),
+      new Map([[undefined, groups]]),
+    )
     const elapsed = performance.now() - start
 
-    expect(groups.length).toBe(50)
-    // Expanded groups should be faster (no aggregation).
+    expect(groups.every(group => group.expanded)).toBe(true)
+    expect(aggregated.get('ws0')?.running).toBe(20)
     expect(elapsed).toBeLessThan(50)
-    // All expanded groups should have sessions populated (for HOC to compute badge).
-    for (const group of groups) {
-      expect(group.expanded).toBe(true)
-      expect(group.sessions.length).toBe(20)
-    }
   })
 })
 
