@@ -35,6 +35,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the Session root standard-hook merge.
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only：插件页卡片的官方设置表单契约（运行时由 `configForms` 服务提供）。
+import type { SettingsFormScope } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
   type SessionArchiveConfirmInjected, type SessionArchiveConfirmRequest,
@@ -42,7 +44,8 @@ import {
   type WorkspaceBrowserInjected, type WorkspacePickerInjected,
 } from './contract/slots.ts'
 import { createWorkspaceShortcutControls, installWorkspaceShortcuts } from './shortcuts.ts'
-import { createBadgeSettingsSource, ENTRY_ID, type ResolvedBadgeSettings, type SettingsScopeLike } from './badge-settings.ts'
+import { createBadgeSettingsSource, ENTRY_ID, type ResolvedBadgeSettings } from './badge-settings.ts'
+import { BadgeSettingsCard } from './BadgeSettingsCard.tsx'
 import { UiWorkspaceService } from './navigation.ts'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
@@ -92,10 +95,30 @@ const NS = 'workspace'
  * `configForms` 服务的最小结构面（宿主 `@deepseek-ai/dsh-client-ui-settings` 的
  * 一部分）。此处按结构声明而非导入该包：本插件不需要设置页的其余能力，窄化的
  * 形状让服务缺席时降级为一个 `undefined` 检查而非编译期依赖。
+ *
+ * `get` 的返回类型直接用官方 `SettingsFormScope`：那就是 `configForms.get(条目 id)`
+ * 的运行时形状（`getSnapshot` / `subscribe` / `mutate`），设置卡片（官方
+ * `SettingsFormModel`）要的也正是它，因此不需要本地复刻一份契约。
+ *
+ * `whileServed` 可选：它在 0.1.7 settings rewrite 一代才有，用于「宿主仍在服务该
+ * 条目命名空间时」维持一段注册。缺席时只跳过插件页卡片，折叠徽标的读通道照常。
  */
 interface ConfigFormsLike {
-  get(entryId: string): SettingsScopeLike
+  get(entryId: string): SettingsFormScope<Record<string, unknown>>
+  whileServed?(
+    entryIds: readonly string[],
+    register: (served: ReadonlySet<string>) => () => void,
+  ): () => void
 }
+
+/** 插件详情页配置表单的槽位名（按包名寻址；契约见 `plugin-manager-slot.d.ts`）。 */
+const CONFIG_CARD_SLOT = 'plugins.bundle.config'
+
+/**
+ * 插件管理器分发 `plugins.bundle.config` 用的键 = **包名**（不是条目 id）。
+ * 本包的补丁把行 id 也写成同名，但两者是不同概念，别改成 ENTRY_ID 的引用。
+ */
+const CONFIG_CARD_KEY = 'dsh-group-status'
 
 /**
  * Required services (cordis fiber inject). The target slots are declared by
@@ -150,13 +173,40 @@ export function apply(ctx: Context): void {
   // namespace——宿主 `describe()` 的 `ns` 即条目 id。
   ctx.inject(['configForms'], (configCtx) => {
     const forms = configCtx.get('configForms') as ConfigFormsLike | undefined
-    const scope: SettingsScopeLike | undefined =
-      forms !== undefined && typeof forms.get === 'function' ? forms.get(ENTRY_ID) : undefined
+    if (forms === undefined || typeof forms.get !== 'function') return
+    // 同一份官方设置表单既喂折叠徽标（只读快照），也喂插件页卡片（读写）。
+    const scope = forms.get(ENTRY_ID)
     if (scope === undefined) return
     badgeSettings.publish(scope.getSnapshot())
     configCtx.effect(
       () => scope.subscribe(() => { badgeSettings.publish(scope.getSnapshot()) }),
       'dsh-group-status: badge settings',
+    )
+
+    // 插件详情页（插件 → dsh-group-status）的配置表单。宿主把 `Config` 投影成
+    // 上面这份表单，但页面要插件自己注册卡片才画得出来——没有这段，设置项在
+    // GUI 里不存在（README 的「设置项」一节描述的就是这张卡片）。
+    //
+    // 键取**包名**（插件管理器按包名分发该槽位），寻址的表单仍是上面同一份 scope，
+    // 于是卡片与折叠徽标永远读同一个值。
+    //
+    // `whileServed` 盯住条目命名空间：宿主不再服务该条目时连卡片一起注销，避免
+    // 留下一张点开即空的表单。`bind` 是必需的：它是类原型方法，内部读写
+    // `this.mirror`，取下来裸调用会丢接收者。
+    const whileServed = forms.whileServed?.bind(forms)
+    if (whileServed === undefined) return
+    configCtx.effect(
+      () => whileServed([ENTRY_ID], () => ctx.slots.inject(CONFIG_CARD_SLOT, () =>
+        ctx.slots.register(
+          {
+            name: CONFIG_CARD_SLOT,
+            key: CONFIG_CARD_KEY,
+            locale: NS,
+            inject: () => ({ scope }),
+          },
+          BadgeSettingsCard,
+        ))),
+      'dsh-group-status: plugins-page card',
     )
   })
 
