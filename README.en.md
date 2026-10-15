@@ -49,7 +49,7 @@ Fold any group that has live sessions; a badge appears after the folder name:
 Rules:
 
 - **Completed reaches the badge**: `done` (completed-unread) now shows a green dot while folded, reusing the same `StateDot` state as the session row; a group with nothing but completed sessions shows a badge just like any other.
-- **The count** = approvals + running + completed + sessions with scheduled tasks + sessions waiting for review. Whenever a badge renders it carries the count, including a single-session `1`.
+- **The count** = approvals + running (**including running subagents**) + completed + sessions with scheduled tasks + sessions waiting for review. Whether the number renders at all is gated by `countThreshold` (default 2 — a lone item shows dots only).
 - **Hover details**: the folder row's hover card appends lines in the order `approval · plan review · answer · running · subagents · waiting review · scheduled tasks · completed`, e.g. `1 Waiting for answer · 1 Running`.
 - **Expanding defers to the rows**: the aggregate badge only renders while collapsed; expanded groups keep their per-row statuses with no duplication.
 - **Accessible**: the badge is `role="img"` with a localized `aria-label` (e.g. `1 Waiting for answer · 1 Running`) and the same text as its `title`.
@@ -189,7 +189,7 @@ Seven further upstream specs only run inside the DSH monorepo: they either need 
 ## Known limitations
 
 - **Upstream bumps need a manual rebase**: the upstream source is vendored (`src/`, `tests/`) and this is not a stable public API; slot names, component signatures and context contracts may shift under it. Steps are in the [upgrade runbook](./docs/upgrading.md).
-- **One extra full traversal while collapsed**: aggregation shares the expanded derivation, so huge groups (hundreds of sessions) cost one extra traverse per status change — same order as expanded rendering, acceptable.
+- **One extra full measurement pass per status change**: aggregation shares the expanded derivation, and to make collapsed parents count correctly **expanded groups get measured too** — they draw no badge themselves, but a collapsed ancestor needs their numbers. Huge groups (hundreds of sessions) cost one extra traverse plus a fold up the tree per status change — same order as expanded rendering, acceptable. A perf spec guards this cost.
 - **It produces no status itself**: the cross-plugin icons depend entirely on the summary APIs published by dsh-later / dsh-gitea-dispatch. Without them you simply lose those two icons.
 - **The count is coarser than the details**: scheduled tasks are counted per *session*, not per task; the exact task count lives in dsh-later's own UI.
 - **Collapsed sidebar only**: this plugin only adds an aggregate display — it does not touch the session state machine or the per-row badge predicates.

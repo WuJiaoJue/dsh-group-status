@@ -18,8 +18,8 @@
 
 | # | 文件 / 符号 | 改了什么 |
 |---|---|---|
-| 1 | `src/client/tree.ts` — `GroupLiveStatus`、`summarizeGroupStatus()`、`GroupNode.liveStatus` | 折叠时也对该分组的全部成员算聚合计数；含跨插件两个可选入参（schedule / waiting-review） |
-| 2 | `src/client/rows/Rows.tsx` — `groupLiveLabel()` / `groupLiveBadge()` | 折叠且有活时在 `ProjectRowItem` 上画徽标（点 + 图标 + 数字），`role="img"` + `aria-label` |
+| 1 | `src/client/tree.ts` — `GroupNode.liveStatus`（**可选字段**）+ `GroupLiveStatus` 类型 re-export | 只留类型面：`liveStatus?` 供渲染层读取，`GroupLiveStatus` 从 `group-status.ts` 转出给 `Rows.tsx` 用。**计算不在此文件**（见 #21、#22） |
+| 2 | `src/client/rows/GroupBadge.tsx` — `groupLiveLabel()` / `groupLiveBadge()` / `hoverStatusLines()` | **本仓库新增文件**（上游没有）：折叠且有活时画徽标（点 + 图标 + 数字），`role="img"` + `aria-label`；悬停明细行也在这里拼。`Rows.tsx` 只剩 import 与两个调用点 |
 | 3 | `src/client/rows/Rows.tsx` — `WorkspaceHoverContent` 的 `status` prop | 折叠时在 hover 卡里追加聚合明细行 |
 | 4 | `src/client/rows/Rows.module.css` — `.groupBadge*` / `.groupLive*` | 徽标与数字的样式 |
 | 5 | `src/client/rows/WorkspaceBrowser.tsx` — `require('dsh-later/client')` / `require('dsh-gitea-dispatch/client')` | 可选消费跨插件摘要 hook，容忍未安装（`try/catch` 后保持 `undefined`） |
@@ -38,6 +38,10 @@
 | 18 | `src/client/BadgeSettingsCard.tsx` + `BadgeSettingsCard.module.css` | **本仓库新增**：插件详情页（插件 → dsh-group-status）的配置卡片。**为什么必需**：宿主只把 `Config` 投影成 `configForms` 表音，页面要插件自己注册卡片才画得出来——没有它 README「设置项」描述的 UI 不存在。外观与交互**不自造**：框架用官方 `SettingsForm`、草稿与保存用官方 `SettingsFormModel`、开关用官方 `Switch`（与「设置 → 内置插件 → 子智能体」同一套）；CSS 只写 section/heading 与开关行，取值逐条照抄 `ui-settings-subagent` 的 `SubagentCard.module.css` / `SubagentModelSelectionFields.module.css` |
 | 19 | `src/client/plugin-manager-slot.d.ts` | **本仓库新增**：`plugins.bundle.config` 的本地 `SlotMap` 声明（按包名寻址）。手写而非 `import type` 插件管理器：该包不进 devDependencies；若哪天进了，删掉本文件 |
 | 20 | `tests/badge-settings-card.client.spec.tsx` | **本仓库新增**：字段规格用真实现测；卡片接线用契约等价桩（官方 `SettingsForm` / `SettingsFormModel` / `Switch`）测——那个包的 bundle 依赖宿主应用预载的整棵依赖闭包，独立仓库跑不起来（见 `vitest.config.ts` 头部） |
+| 21 | `src/client/group-status.ts` | **本仓库新增文件**（上游没有）：徽标数字的全部计算——`GroupLiveStatus` / `EMPTY_LIVE_STATUS` / `mergeLiveStatus` / `summarizeGroupStatus`，加上多层聚合三件套 `directStatusesForGroups` → `aggregateGroupStatuses` → `withAggregatedStatus`，与渲染契约类型 `StatusedGroupNode`（`liveStatus` 必填）。纯函数、无 React 依赖，所以整条管线可脱离渲染测 |
+| 22 | `src/client/rows/WorkspaceBrowser.tsx` — 聚合管线三个 memo | `childrenByParentForAggregation`（父→子树）→ `directStatusesForGroups`（每组直接成员）→ `withAggregatedStatus`（上卷成子树合计），渲染行类型为 `StatusedGroupNode`。**两条铁律**：① 展开的分组同样必须被测量——「不画徽标」是 `groupLiveBadge` 的渲染决定，把 `expanded` 短路成 `EMPTY_LIVE_STATUS` 会让每个折叠父级按展开后代的规模少算（曾以此形态发布）；② 上游 `deriveGroups` 已不再算 `liveStatus`，若上游重新加回，本行与 #23 一起撤 |
+| 23 | `src/client/tree.ts` — `deriveGroups()` 契约变更 | 三处：不再接收 `waitingReviewSummary` / `scheduleSummary` 入参；不再给 `liveStatus` 赋值（留空由 #22 填）；**`sessions` 恒为全量成员**，折叠时不再置空。第三条最危险——渲染层必须自己按 `expanded` 决定画不画会话行与溢出按钮，漏一处就是「折叠的工作区里会话还在列」 |
+| 24 | `src/client/rows/WorkspaceBrowser.tsx` — `AnimatedRows` 的 `resetKey` | 只传视图替换键（`groupBy`/`orderBy`/`archivedFilter`）。上游把 `sessionLimits` 也混了进去，而它自己那份 `onToggle` 在**折叠**时会重置该组 limit → `resetKey` 变化 → `AnimatedRows` 跳过动画，折叠于是没有淡出。上游本意只是让「展开其余 N 个会话」瞬时呈现，属顺带踩到；改回来的代价是 reveal 也会淡入 |
 
 `cordis.patch.yml` 只有两条：`insert` 本包、`ui-workspace` `disabled: true`。升级不动它。
 
@@ -68,7 +72,7 @@
 | `tests/tree.client.spec.ts` | 上游 | 分组派生、排序、会话行与搜索 |
 | `tests/browser-styles.client.spec.ts` | 上游 | 侧栏样式契约（直接读 CSS 文件） |
 | `tests/animated-rows.client.spec.tsx` | 上游 | 行动画 |
-| `tests/group-status.client.spec.ts` | **本仓库** | 折叠聚合：计数、待处理类互斥、子智能体、空白/归档跳过、定时任务与等待评审聚合、未安装时降级 |
+| `tests/group-status.client.spec.ts` | **本仓库** | 折叠聚合：计数、待处理类互斥、子智能体、空白/归档跳过、定时任务与等待评审聚合、未安装时降级；**多层聚合**（展开的中间层必须计入折叠祖先、任意深度、父子环不死循环）；聚合路径全折叠 / 全展开两侧的 perf 护栏。注意 `groupOf()` 走的是真实管线，**不要**再在测试里手工赋 `liveStatus`——那样测试只能证明副本自己 |
 
 **7 个上游 spec 被显式跳过**（`vitest.config.ts` 顶部的 `MONOREPO_ONLY_SPECS`），因为它们在独立仓库里无解：
 
