@@ -15,8 +15,8 @@ import type {
   SessionPendingInteraction, SessionStatus, SessionStatusSnapshot,
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
-import { summarizeGroupStatus } from '../src/client/group-status.ts'
+import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, owningParentFolder, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
+import { aggregateGroupStatuses, directStatusesForGroups, summarizeGroupStatus } from '../src/client/group-status.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -334,5 +334,98 @@ describe('mergeLiveStatus', () => {
     }
     const merged = mergeLiveStatus(status, EMPTY)
     expect(merged).toEqual(status)
+  })
+})
+
+describe('tree-wide aggregation', () => {
+  /** A workspace at an explicit path, so folder nesting is real rather than implied. */
+  const at = (id: string, path: string, sessionIds: readonly string[]): WorkspaceView => ({
+    workspaceId: wid(id), path, title: id,
+    sessionIds: sessionIds.map(sid),
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  })
+
+  /** Three folder levels, every session running: 1 + 2 + 3. */
+  const nested = () => {
+    const owned: Record<string, string[]> = {
+      root: ['r1'], child: ['c1', 'c2'], grand: ['g1', 'g2', 'g3'],
+    }
+    const all = [...owned.root, ...owned.child, ...owned.grand]
+    return {
+      owned,
+      state: list(all.map(id => summary(id, 1000))),
+      statuses: new Map(all.map(id => [sid(id), status(undefined, { running: true })])) as SessionStatusSnapshot,
+      workspaces: [
+        at('root', '/plugins', owned.root),
+        at('child', '/plugins/child', owned.child),
+        at('grand', '/plugins/child/grand', owned.grand),
+      ],
+    }
+  }
+
+  /** Mirrors the component's tree build: parent folder key → rendered children. */
+  const childrenOf = (groups: readonly GroupNode[]): Map<string | undefined, GroupNode[]> => {
+    const paths = groups.map(group => group.cwd as string)
+    const keyByPath = new Map(groups.map(group => [group.cwd as string, group.key]))
+    const children = new Map<string | undefined, GroupNode[]>()
+    for (const group of groups) {
+      const parentPath = owningParentFolder(group.cwd as string, paths)
+      const parent = parentPath === undefined ? undefined : keyByPath.get(parentPath)
+      const siblings = children.get(parent)
+      if (siblings === undefined) children.set(parent, [group])
+      else siblings.push(group)
+    }
+    return children
+  }
+
+  /** The production pipeline: deriveGroups → direct statuses → fold up the tree. */
+  const pipeline = (expanded: readonly string[]) => {
+    const { state, statuses, workspaces } = nested()
+    const groups = deriveGroups(state, workspaces, rowState(), statuses, { expandedGroups: [...expanded] })
+    const direct = directStatusesForGroups(groups)
+    return { direct, aggregated: aggregateGroupStatuses(direct, childrenOf(groups)) }
+  }
+
+  it('measures an expanded group\'s own members, not an empty placeholder', () => {
+    const { direct } = pipeline(['child'])
+    expect(direct.get('child')?.running).toBe(2)
+  })
+
+  it('counts an expanded intermediate folder toward its collapsed parent', () => {
+    // The regression: `child` is expanded, so it renders no badge of its own — but
+    // its 2 running sessions still need attention and `root` must keep counting them.
+    const { aggregated } = pipeline(['child'])
+    expect(aggregated.get('root')?.running).toBe(6)
+    expect(aggregated.get('child')?.running).toBe(5)
+    expect(aggregated.get('grand')?.running).toBe(3)
+  })
+
+  it('aggregates at any depth with every folder collapsed', () => {
+    const { aggregated } = pipeline([])
+    expect(aggregated.get('root')?.running).toBe(6)
+    expect(aggregated.get('child')?.running).toBe(5)
+  })
+
+  it('aggregates at any depth with every folder expanded', () => {
+    const { aggregated } = pipeline(['root', 'child', 'grand'])
+    expect(aggregated.get('root')?.running).toBe(6)
+    expect(aggregated.get('child')?.running).toBe(5)
+  })
+
+  it('terminates when folder parentage is cyclic', () => {
+    // Parentage comes from path-prefix matching; a self- or mutual-parent edge must
+    // not hang the sidebar.
+    const direct = new Map<string, GroupLiveStatus>([
+      ['a', { ...EMPTY, running: 1 }],
+      ['b', { ...EMPTY, running: 2 }],
+    ])
+    const children = new Map<string | undefined, readonly { key: string }[]>([
+      [undefined, [{ key: 'a' }]],
+      ['a', [{ key: 'b' }]],
+      ['b', [{ key: 'a' }]],
+    ])
+    const aggregated = aggregateGroupStatuses(direct, children)
+    expect(aggregated.size).toBe(2)
+    expect(aggregated.get('a')?.running).toBeGreaterThanOrEqual(1)
   })
 })

@@ -213,3 +213,70 @@ export function summarizeGroupStatus(
     waitingReviewCount, waitingReviewState,
   }
 }
+
+/**
+ * Measure each group's own members, as the input to {@link aggregateGroupStatuses}.
+ *
+ * Every group is measured, expanded ones included. A folder row shows no badge while
+ * it is expanded, but its sessions still need attention and a collapsed ancestor must
+ * keep counting them — so expansion is a rendering fact, never an input to the
+ * aggregation. Short-circuiting expanded groups to `EMPTY_LIVE_STATUS` (the shape this
+ * had before the tree-wide aggregator existed, harmless while nothing aggregated) makes
+ * every collapsed parent undercount by the size of its expanded descendants.
+ *
+ * @param groups - derived groups, each with its member rows already populated.
+ * @param waitingReviewSummary - dsh-gitea-dispatch waiting map, when that plugin is loaded.
+ * @param scheduleSummary - dsh-later schedule map, when that plugin is loaded.
+ */
+export function directStatusesForGroups(
+  groups: readonly { key: string; sessions: readonly SessionNode[] }[],
+  waitingReviewSummary?: WaitingReviewSummaryMap,
+  scheduleSummary?: ScheduleSummaryMap,
+): Map<string, GroupLiveStatus> {
+  const map = new Map<string, GroupLiveStatus>()
+  for (const group of groups) {
+    map.set(group.key, summarizeGroupStatus(
+      group.sessions, group.sessions.map(s => s.id), waitingReviewSummary, scheduleSummary,
+    ))
+  }
+  return map
+}
+
+/**
+ * Fold every group's DIRECT status up the workspace tree, so a collapsed folder
+ * counts every descendant session. A group's own row shows no badge while it is
+ * expanded, but its sessions still need attention and its collapsed ancestor must
+ * keep counting them — so the walk never depends on a group's expanded state.
+ *
+ * @param direct - each group's own-member status, keyed by group key.
+ * @param childrenByParent - the rendered tree: parent key (`undefined` = roots) → children.
+ * @returns aggregated status per group key: own members plus the whole subtree.
+ */
+export function aggregateGroupStatuses(
+  direct: ReadonlyMap<string, GroupLiveStatus>,
+  childrenByParent: ReadonlyMap<string | undefined, readonly { key: string }[]>,
+): Map<string, GroupLiveStatus> {
+  const aggregated = new Map<string, GroupLiveStatus>()
+  // Parentage comes from path-prefix matching, so a self- or mutual-parent edge is
+  // representable; without this guard the fold would recurse forever and hang the sidebar.
+  const visiting = new Set<string>()
+  const fold = (key: string): GroupLiveStatus => {
+    const cached = aggregated.get(key)
+    if (cached !== undefined) return cached
+    if (visiting.has(key)) return direct.get(key) ?? EMPTY_LIVE_STATUS
+    visiting.add(key)
+    let total = direct.get(key) ?? EMPTY_LIVE_STATUS
+    for (const child of childrenByParent.get(key) ?? []) {
+      total = mergeLiveStatus(total, fold(child.key))
+    }
+    visiting.delete(key)
+    aggregated.set(key, total)
+    return total
+  }
+  // Every listed child is folded, not just the roots: an unreachable group would
+  // otherwise be missing from the map and lose its badge.
+  for (const children of childrenByParent.values()) {
+    for (const child of children) fold(child.key)
+  }
+  return aggregated
+}
