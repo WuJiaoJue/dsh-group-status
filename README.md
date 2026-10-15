@@ -6,7 +6,7 @@
 
 **中文** | [English](./README.en.md)
 
-[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/dsh-plugins/dsh-group-status)
+[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/dsh-plugin-collection/dsh-group-status)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -93,7 +93,7 @@
 
 | 数据源 | 提供 | 消费方接入 |
 |---|---|---|
-| [dsh-later](https://github.com/dsh-plugins/dsh-later) | `useScheduleSummary()`：会话 id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
+| [dsh-later](https://github.com/dsh-plugin-collection/dsh-later) | `useScheduleSummary()`：会话 id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
 | dsh-gitea-dispatch | `useWaitingSummary()`：会话 id → `{ prNumber, state }` | `require('dsh-gitea-dispatch/client')` |
 
 - 两个插件**未安装 / 未启用时静默降级**：图标不出现，其余徽标照常，不会报错也不会空转。
@@ -130,7 +130,7 @@ dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
 本机开发时用 link，改完 `src/` 重建即可生效：
 
 ```bash
-git clone https://github.com/dsh-plugins/dsh-group-status.git
+git clone https://github.com/dsh-plugin-collection/dsh-group-status.git
 cd dsh-group-status
 pnpm install && pnpm build
 

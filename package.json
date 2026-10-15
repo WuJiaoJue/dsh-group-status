@@ -15,11 +15,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dsh-plugins/dsh-group-status.git"
+    "url": "git+https://github.com/dsh-plugin-collection/dsh-group-status.git"
   },
-  "homepage": "https://github.com/dsh-plugins/dsh-group-status",
+  "homepage": "https://github.com/dsh-plugin-collection/dsh-group-status",
   "bugs": {
-    "url": "https://github.com/dsh-plugins/dsh-group-status/issues"
+    "url": "https://github.com/dsh-plugin-collection/dsh-group-status/issues"
   },
   "engines": {
     "node": "^22.19 || >=24"
