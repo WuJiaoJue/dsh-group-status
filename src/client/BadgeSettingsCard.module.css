@@ -1,0 +1,104 @@
+/*
+ * 折叠徽标设置卡片的样式。
+ *
+ * 取值**逐条照抄官方设置卡**，不自己发明：
+ *  - section / heading ← ui-settings-subagent 的 `SubagentCard.module.css`
+ *    （`.AZSXYW_section{min-width:0;padding:16px 0}`、`.AZSXYW_heading{margin:0;font-size:13px;font-weight:600;line-height:1.5;color:label-primary}`）
+ *  - 开关行 / 提示 ← 同包的 `SubagentModelSelectionFields.module.css`
+ *    （`.UPHdGa_toggleRow` / `.UPHdGa_toggleLabel` / `.UPHdGa_hint`）
+ * 表单框架（只读提示、保存按钮、失败行、间距）由官方 `SettingsForm` 自带，本文件不重复实现。
+ *
+ * 全部颜色走 `--dsw-*` 主题 token（主题包对这些 token 各有 light / dark 两份定义）。
+ */
+
+.section {
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.section:last-child {
+  padding-bottom: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 一个布尔字段的容器：开关行 + 下方说明（官方 subagent 的 `.permission`）。 */
+.badgeField {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+}
+
+.badgeToggleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+}
+
+.badgeToggleLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.badgeNumberControl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badgeNumberButton {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-elevated, #2a2a2a);
+  border: 1px solid var(--dsw-alias-border-primary, #555);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.badgeNumberButton:hover:not(:disabled) {
+  border-color: var(--dsw-alias-border-focus, #0078d4);
+  background: var(--dsw-alias-bg-hover, #3a3a3a);
+}
+
+.badgeNumberButton:active:not(:disabled) {
+  background: var(--dsw-alias-bg-active, #4a4a4a);
+}
+
+.badgeNumberButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.badgeNumberValue {
+  min-width: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
