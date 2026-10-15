@@ -24,7 +24,7 @@ export const name = 'dsh-group-status'
  * 并把保存结果回灌到条目配置。浏览器半通过 `configForms.get('dsh-group-status')`
  * 读取同一份文档，改完即时生效、无需刷新。
  *
- * 全部可选且带默认值：未配置时即开箱即用（已完成默认显示）。
+ * 全部可选且带默认值：未配置时即开箱即用（所有来源默认显示）。
  */
 export const Config = Schema.object({
   /**
@@ -34,11 +34,29 @@ export const Config = Schema.object({
    * （会话行自身的绿点不受影响——那是行级状态，不是分组提示）。
    */
   showCompletedInBadge: Schema.boolean().default(true),
+  /** 折叠分组徽标是否显示「进行中」转圈（含子智能体）。 */
+  showRunningInBadge: Schema.boolean().default(true),
+  /** 折叠分组徽标是否显示「待审批」黄点（approval / plan-review / question）。 */
+  showPendingInBadge: Schema.boolean().default(true),
+  /** 折叠分组徽标是否显示「定时任务」时钟图标（数据来自 dsh-later）。 */
+  showScheduledInBadge: Schema.boolean().default(true),
+  /** 折叠分组徽标是否显示「等待评审」列表笔图标（数据来自 dsh-gitea-dispatch）。 */
+  showWaitingReviewInBadge: Schema.boolean().default(true),
+  /** 悬停卡里是否显示聚合明细行（"1 等待回答 · 1 进行中…"）。 */
+  showHoverDetails: Schema.boolean().default(true),
+  /** 徽标数字显示阈值：数量 >= 此值时才显示数字（默认 2，即 count=1 时省略）。 */
+  countThreshold: Schema.number().default(2),
 }).volatile()
 
 /** The resolved shape {@link Config} projects into. */
 export interface Config {
   showCompletedInBadge: boolean
+  showRunningInBadge: boolean
+  showPendingInBadge: boolean
+  showScheduledInBadge: boolean
+  showWaitingReviewInBadge: boolean
+  showHoverDetails: boolean
+  countThreshold: number
 }
 
 /**
