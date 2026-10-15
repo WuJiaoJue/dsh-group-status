@@ -17,8 +17,11 @@ import type {
   SessionPendingInteraction, SessionStatus, SessionStatusSnapshot,
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, owningParentFolder, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
-import { aggregateGroupStatuses, directStatusesForGroups, withAggregatedStatus } from '../src/client/group-status.ts'
+import { deriveGroups, owningParentFolder, type GroupNode } from '../src/client/tree.ts'
+import {
+  aggregateGroupStatuses, directStatusesForGroups, withAggregatedStatus,
+  EMPTY_LIVE_STATUS, mergeLiveStatus, type GroupLiveStatus,
+} from '../src/client/group-status.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId

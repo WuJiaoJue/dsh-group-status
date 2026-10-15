@@ -12,7 +12,8 @@ import {
   IconClockOutlineRegular, IconListPenOutlineRegular, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
-import type { GroupLiveStatus, GroupNode } from '../tree.ts'
+import type { GroupNode } from '../tree.ts'
+import type { GroupLiveStatus } from '../group-status.ts'
 import type { ResolvedBadgeSettings } from '../badge-settings.ts'
 import css from './Rows.module.css'
 
