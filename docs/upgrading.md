@@ -11,7 +11,7 @@
 - **来源**：`src/` 与 `tests/` 是上游对应包的**源码副本**，在 `d70ad82`（“build: vendor upstream source, own the build”）里一次性拷入，此后由本仓库自己构建。
 - **不要再 diff `lib/`**：`lib/client.js` 是 tsdown 产物（`window.__ModuleLoader__.load({ id: 'dsh-group-status', factory })` 闭包工厂），不是可 diff 的官方复制品；npm 上发布的上游包同样只带构建产物。**rebase 对象永远是 `src/`。**
 - **构建链**：`build/tools/` 是上游 tsdown 客户端预设拉平后的自包含副本（自解析 manifest、扁平导入、不扫 monorepo 路径）；`tsconfig.json` 是独立客户端配置，去掉了 monorepo base 与 project references。
-- **产物要提交**：`lib/` 随仓库提交，`dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"` 直接吃它。**改完 `src/` 必须 `pnpm build` 并一并提交 `lib/`**，否则从 GitHub 安装的人拿不到新行为。
+- **产物要提交**：`lib/` 随仓库提交，`dsh plugin --profile web add "github:dsh-plugin-collection/dsh-group-status"` 直接吃它。**改完 `src/` 必须 `pnpm build` 并一并提交 `lib/`**，否则从 GitHub 安装的人拿不到新行为。
 - **产物不是逐字节可复现的**：`lib/client.js` 里 CSS Modules 的类名哈希（如 `.eCE9Ta_…`）与 `//#region` 注释路径都跟**构建时的绝对路径**有关。同一份 `src/` 在不同 checkout（比如 issue worktree）里构建，`lib/` 会有几十行「只有哈希和路径不同」的 diff——那是噪声，不是功能差异。所以：**谁改 `src/` 谁重建并提交**，review 时不要把这种 diff 当行为变更。
 
 ## 本地改动清单（rebase 时逐条重新施加）

@@ -6,7 +6,7 @@
 
 [中文](./README.md) | **English**
 
-[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/dsh-plugins/dsh-group-status)
+[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/dsh-plugin-collection/dsh-group-status)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -93,7 +93,7 @@ When sessions inside a group have scheduled tasks or wait on a PR review, the ba
 
 | Publisher | Provides | Consumer entry point |
 |---|---|---|
-| [dsh-later](https://github.com/dsh-plugins/dsh-later) | `useScheduleSummary()`: session id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
+| [dsh-later](https://github.com/dsh-plugin-collection/dsh-later) | `useScheduleSummary()`: session id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
 | dsh-gitea-dispatch | `useWaitingSummary()`: session id → `{ prNumber, state }` | `require('dsh-gitea-dispatch/client')` |
 
 - When either plugin is **absent or disabled, the integration degrades silently**: no icon, everything else keeps working, no errors and no idle polling.
@@ -123,14 +123,14 @@ dsh plugin --profile web add dsh-group-status
 Or install from GitHub:
 
 ```bash
-dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
+dsh plugin --profile web add "github:dsh-plugin-collection/dsh-group-status"
 # restart dsh web
 ```
 
 For local development, link a checkout and rebuild as you edit `src/`:
 
 ```bash
-git clone https://github.com/dsh-plugins/dsh-group-status.git
+git clone https://github.com/dsh-plugin-collection/dsh-group-status.git
 cd dsh-group-status
 pnpm install && pnpm build
 

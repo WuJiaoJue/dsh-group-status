@@ -123,7 +123,7 @@ dsh plugin --profile web add dsh-group-status
 或者从 GitHub 安装：
 
 ```bash
-dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
+dsh plugin --profile web add "github:dsh-plugin-collection/dsh-group-status"
 # 重启 dsh web 后生效
 ```
 
