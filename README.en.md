@@ -6,7 +6,7 @@
 
 [中文](./README.md) | **English**
 
-[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/WuJiaoJue/dsh-group-status)
+[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/dsh-plugins/dsh-group-status)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -56,24 +56,30 @@ Rules:
 
 ### Settings
 
-Settings → Plugins → **dsh-group-status** (the config form on the plugin's page):
+**Plugins** in the sidebar → **dsh-group-status** (the config form on the bundle's page, between its description and the component rows):
 
 | Field | Default | Meaning |
 |---|---|---|
+| `showRunningInBadge` | `true` | Whether the folded badge shows the "running" spinning dot |
+| `showPendingInBadge` | `true` | Whether the folded badge shows the "pending" yellow dot (approval / plan review / waiting for answer) |
 | `showCompletedInBadge` | `true` | Whether the folded badge shows a green "completed" dot |
+| `showScheduledInBadge` | `true` | Whether the folded badge shows the "scheduled" clock icon (data from dsh-later) |
+| `showWaitingReviewInBadge` | `true` | Whether the folded badge shows the "waiting for review" list-pen icon (data from dsh-gitea-dispatch) |
+| `showHoverDetails` | `true` | Whether the hover card shows the aggregated status detail lines |
+| `countThreshold` | `2` | The count is shown on the badge only when the total is >= this value (default 2, i.e. omits the count when it equals 1 — the dots already convey "something is happening"; set to 1 to always show) |
 
-Switching it off takes `done` out of the folded row's aggregate entirely — no green dot, no contribution to the badge count, and it no longer keeps the badge alive, so a group with nothing but completed sessions shows no badge again. **The green dot on a session row itself is unaffected**: that is row-level state, not a folder hint.
+Switching a source off takes it out of the folded row's aggregate entirely — no dot/icon, no contribution to the badge count, no hover detail line, and it no longer keeps the badge alive. **The state dot on a session row itself is unaffected**: that is row-level state, not a folder hint. With `showHoverDetails` off, the hover card shows only the title, path, and creation time.
 
-Changes apply live, with no refresh. When the settings face cannot be read (e.g. the Host serves no settings service), it falls back to the default "show", matching the schema default — failing to read a config is not the user turning it off.
+Saving applies it live, with no refresh; the Host writes it into the profile patch's `dsh-group-status` entry `config`, so it survives a page reload. When the settings face cannot be read (e.g. the Host serves no settings service), it falls back to the default "show", matching the schema default — failing to read a config is not the user turning it off.
 
 ---
 
 ## Feature overview
 
-- **Visible when folded**: the aggregate only exists while collapsed; an expanded sidebar is pixel-identical to stock.
+- **Visible when folded**: the aggregate only exists while collapsed; an expanded sidebar is pixel-identical to stock. Nested groups are supported too — when a parent group is folded, its badge aggregates sessions from all descendant groups.
 - **Same source of truth as rows**: priority, colors and wording all reuse the row derivation and `StateDot`; blank and archived sessions are skipped.
 - **Cross-plugin aggregation** (optional): scheduled tasks from dsh-later, waiting PR reviews from dsh-gitea-dispatch — works fine with neither installed.
-- **Usable with zero config**: sensible defaults out of the box; the one setting, `showCompletedInBadge`, can drop the green "completed" dot from the folded badge.
+- **Usable with zero config**: sensible defaults out of the box; 7 settings let you fine-tune which sources appear in the folded badge, hover details, and count display.
 - **No stock files touched**: not a single file of the published `dsh-client-ui-workspace` is modified; all changes live in this repo's source, and the profile patch is two lines (add this package, disable the stock row).
 - **Localized**: follows the DSH UI language (中文 / English) by reusing the stock locale keys; only `status.waitingReview` and `status.scheduled` are new.
 
@@ -87,7 +93,7 @@ When sessions inside a group have scheduled tasks or wait on a PR review, the ba
 
 | Publisher | Provides | Consumer entry point |
 |---|---|---|
-| [dsh-later](https://github.com/WuJiaoJue/dsh-later) | `useScheduleSummary()`: session id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
+| [dsh-later](https://github.com/dsh-plugins/dsh-later) | `useScheduleSummary()`: session id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
 | dsh-gitea-dispatch | `useWaitingSummary()`: session id → `{ prNumber, state }` | `require('dsh-gitea-dispatch/client')` |
 
 - When either plugin is **absent or disabled, the integration degrades silently**: no icon, everything else keeps working, no errors and no idle polling.
@@ -124,7 +130,7 @@ dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
 For local development, link a checkout and rebuild as you edit `src/`:
 
 ```bash
-git clone https://github.com/WuJiaoJue/dsh-group-status.git
+git clone https://github.com/dsh-plugins/dsh-group-status.git
 cd dsh-group-status
 pnpm install && pnpm build
 

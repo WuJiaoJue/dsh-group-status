@@ -6,7 +6,7 @@
 
 **中文** | [English](./README.en.md)
 
-[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/WuJiaoJue/dsh-group-status)
+[![version](https://img.shields.io/badge/version-0.2.0-0EA5E9)](https://github.com/dsh-plugins/dsh-group-status)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--rc.2-4D6BFE)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -56,24 +56,30 @@
 
 ### 设置项
 
-设置 → 插件 → **dsh-group-status**（插件详情页的配置表单）：
+侧栏 **插件** → **dsh-group-status**（bundle 详情页的配置表单，在描述与「包含的组件」之间）：
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
+| `showRunningInBadge` | `true` | 折叠徽标是否显示「进行中」转圈 |
+| `showPendingInBadge` | `true` | 折叠徽标是否显示「待审批 / 待评审 / 待回答」黄点 |
 | `showCompletedInBadge` | `true` | 折叠徽标是否显示「已完成」绿点 |
+| `showScheduledInBadge` | `true` | 折叠徽标是否显示「定时任务」时钟图标（数据来自 dsh-later） |
+| `showWaitingReviewInBadge` | `true` | 折叠徽标是否显示「等待评审」列表笔图标（数据来自 dsh-gitea-dispatch） |
+| `showHoverDetails` | `true` | 悬停卡是否显示聚合状态明细行 |
+| `countThreshold` | `2` | 徽标数字显示阈值：数量 >= 此值时才显示数字（默认 2，即 count=1 时省略——点已表达"有东西在发生"；设为 1 则始终显示） |
 
-关闭后，`done` 完全退出折叠行的聚合提示——不画绿点、不计入徽标数字、不参与「是否显示徽标」的判断，等于回到「一组只剩已完成时不出现徽标」。**会话行自身的绿点不受影响**：那是行级状态，不是分组提示。
+按状态关掉后，对应的来源完全退出折叠行的聚合提示——不画点/图标、不计入徽标数字、不进悬停明细、不参与「是否显示徽标」的判断。**会话行自身的状态点不受影响**：那是行级状态，不是分组提示。`showHoverDetails` 关闭后，悬停卡只显示标题、路径与创建时间。
 
-改动即时生效，无需刷新。设置面读不到时（例如宿主未提供设置服务）回落为默认「显示」，与 schema 默认值同源——读不到配置不等于用户关掉了。
+点「保存」后即时生效，无需刷新；设置由宿主写进 profile patch 的 `dsh-group-status` 条目 `config`，刷新页面后仍在。设置面读不到时（例如宿主未提供设置服务）回落为默认「显示」，与 schema 默认值同源——读不到配置不等于用户关掉了。
 
 ---
 
 ## 特性一览
 
-- **收起可见**：聚合状态只在分组折叠时出现，展开后的侧栏与官方版本逐像素一致。
+- **收起可见**：聚合状态只在分组折叠时出现，展开后的侧栏与官方版本逐像素一致。嵌套分组也支持——父分组折叠时，徽标聚合所有后代分组的会话状态。
 - **与行内同源**：优先级、颜色、文案全部复用行内状态的派生逻辑与 `StateDot`，跳过空白会话与已归档会话。
 - **跨插件聚合**（可选）：dsh-later 的定时任务、dsh-gitea-dispatch 的等待评审，两个都没装也照常工作——见下。
-- **零配置可用**：默认开箱即用；唯一的设置项 `showCompletedInBadge` 可关掉折叠徽标上的「已完成」绿点。
+- **零配置可用**：默认开箱即用；7 个设置项可精细控制折叠徽标的来源显隐、悬停明细与数字样式。
 - **本体零改动**：官方 `dsh-client-ui-workspace` 包文件一个不动；改动全在本仓库源码里，profile 补丁只有两条（装本包、禁用官方行）。
 - **多语言**：跟随 DSH 界面语言（中文 / English），复用官方文案键，只新增了 `status.waitingReview` 与 `status.scheduled`。
 
@@ -87,7 +93,7 @@
 
 | 数据源 | 提供 | 消费方接入 |
 |---|---|---|
-| [dsh-later](https://github.com/WuJiaoJue/dsh-later) | `useScheduleSummary()`：会话 id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
+| [dsh-later](https://github.com/dsh-plugins/dsh-later) | `useScheduleSummary()`：会话 id → `{ count, pausedCount, nextAt, state }` | `require('dsh-later/client')` |
 | dsh-gitea-dispatch | `useWaitingSummary()`：会话 id → `{ prNumber, state }` | `require('dsh-gitea-dispatch/client')` |
 
 - 两个插件**未安装 / 未启用时静默降级**：图标不出现，其余徽标照常，不会报错也不会空转。
@@ -124,7 +130,7 @@ dsh plugin --profile web add "github:WuJiaoJue/dsh-group-status"
 本机开发时用 link，改完 `src/` 重建即可生效：
 
 ```bash
-git clone https://github.com/WuJiaoJue/dsh-group-status.git
+git clone https://github.com/dsh-plugins/dsh-group-status.git
 cd dsh-group-status
 pnpm install && pnpm build
 
