@@ -7,7 +7,7 @@
  *
  * @module
  */
-import type { SessionNode } from './tree.ts'
+import type { GroupNode, SessionNode } from './tree.ts'
 
 // ── Types (structurally typed to avoid compile-time dependency on cross-plugin packages) ──
 
@@ -279,4 +279,40 @@ export function aggregateGroupStatuses(
     for (const child of children) fold(child.key)
   }
   return aggregated
+}
+
+/**
+ * A group row whose badge input is resolved: its own members plus its whole subtree.
+ *
+ * `GroupNode.liveStatus` is optional only because upstream never fills it — this
+ * package's aggregator is the sole producer. Typing a rendered row as
+ * `StatusedGroupNode` is what turns "a row that skipped the aggregator" into a compile
+ * error instead of a folder that silently lost its badge, which is how the PR #10
+ * regression reached main.
+ */
+export interface StatusedGroupNode extends GroupNode {
+  liveStatus: GroupLiveStatus
+}
+
+/**
+ * Attach each group's subtree-wide status, in derivation order. This is the producer
+ * the sidebar renders from.
+ *
+ * Expanded groups carry their status too: their own row draws no badge (a decision
+ * inside `groupLiveBadge`), but a collapsed ancestor still has to count them, so
+ * expansion never suppresses the measurement.
+ *
+ * @param groups - derived rows, in the order they render.
+ * @param direct - each group's own-member status, from {@link directStatusesForGroups}.
+ * @param childrenByParent - the rendered tree: parent key (`undefined` = roots) → children.
+ */
+export function withAggregatedStatus(
+  groups: readonly GroupNode[],
+  direct: ReadonlyMap<string, GroupLiveStatus>,
+  childrenByParent: ReadonlyMap<string | undefined, readonly GroupNode[]>,
+): StatusedGroupNode[] {
+  const aggregated = aggregateGroupStatuses(direct, childrenByParent)
+  // A group missing from the fold has neither measured members nor listed children,
+  // so it is idle rather than unknown.
+  return groups.map(group => ({ ...group, liveStatus: aggregated.get(group.key) ?? EMPTY_LIVE_STATUS }))
 }

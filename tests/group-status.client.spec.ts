@@ -18,7 +18,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, owningParentFolder, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
-import { aggregateGroupStatuses, directStatusesForGroups } from '../src/client/group-status.ts'
+import { aggregateGroupStatuses, directStatusesForGroups, withAggregatedStatus } from '../src/client/group-status.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -388,13 +388,31 @@ describe('tree-wide aggregation', () => {
     return children
   }
 
-  /** The production pipeline: deriveGroups → direct statuses → fold up the tree. */
+  /** The production pipeline: deriveGroups → direct statuses → fold up → render rows. */
   const pipeline = (expanded: readonly string[]) => {
     const { state, statuses, workspaces } = nested()
     const groups = deriveGroups(state, workspaces, rowState(), statuses, { expandedGroups: [...expanded] })
     const direct = directStatusesForGroups(groups)
-    return { direct, aggregated: aggregateGroupStatuses(direct, childrenOf(groups)) }
+    const children = childrenOf(groups)
+    return {
+      direct,
+      aggregated: aggregateGroupStatuses(direct, children),
+      rows: withAggregatedStatus(groups, direct, children),
+    }
   }
+
+  it('hands every rendered row a resolved status, expanded rows included', () => {
+    const { rows } = pipeline(['child'])
+    const byKey = new Map(rows.map(row => [row.key, row]))
+    // Each row carries what its badge would show: own members plus the whole subtree.
+    // `child` is expanded, so it draws nothing itself — but its row still holds the
+    // measurement, which is the half that used to come back silently undefined.
+    expect(byKey.get('child')?.liveStatus.running).toBe(5)
+    expect(byKey.get('root')?.liveStatus.running).toBe(6)
+    // Coverage, not "is it defined" (the type already guarantees that): every derived
+    // row comes back, so none can slip past the aggregator and render badge-less.
+    expect(rows.map(row => row.key).sort()).toEqual(['child', 'grand', 'root'])
+  })
 
   it('measures an expanded group\'s own members, not an empty placeholder', () => {
     const { direct } = pipeline(['child'])
