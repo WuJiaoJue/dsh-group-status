@@ -685,7 +685,7 @@ function SessionTree({
             />
           )
         })}
-        {collapsed.hiddenCount > 0 && (
+        {group.expanded && collapsed.hiddenCount > 0 && (
           <button
             type="button"
             className={css.sessionOverflowButton}
