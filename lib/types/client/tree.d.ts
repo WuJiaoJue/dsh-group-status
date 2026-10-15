@@ -7,8 +7,9 @@ import { type SessionListState, type SessionSearchResultItem } from '@deepseek-a
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
-import { EMPTY_LIVE_STATUS, summarizeGroupStatus, type GroupLiveStatus, type ScheduleSummaryEntry, type ScheduleSummaryMap, type WaitingReviewSummaryEntry, type WaitingReviewSummaryMap } from './group-status.ts';
-export { EMPTY_LIVE_STATUS, summarizeGroupStatus, type GroupLiveStatus, type ScheduleSummaryEntry, type ScheduleSummaryMap, type WaitingReviewSummaryEntry, type WaitingReviewSummaryMap, };
+import type { GroupLiveStatus, ScheduleSummaryEntry, ScheduleSummaryMap, WaitingReviewSummaryEntry, WaitingReviewSummaryMap } from './group-status.ts';
+import { EMPTY_LIVE_STATUS, mergeLiveStatus } from './group-status.ts';
+export { EMPTY_LIVE_STATUS, mergeLiveStatus, type GroupLiveStatus, type ScheduleSummaryEntry, type ScheduleSummaryMap, type WaitingReviewSummaryEntry, type WaitingReviewSummaryMap, };
 /** Group key for Sessions outside every Workspace. */
 export declare const UNGROUPED_KEY = "";
 /**
@@ -58,8 +59,8 @@ export interface GroupNode {
     expanded: boolean;
     /** The group contains the selected session (active folder tint; supplied here so the renderer never scans). */
     containsCurrent: boolean;
-    /** Aggregated member status; present even while folded, for the folder badge. */
-    liveStatus: GroupLiveStatus;
+    /** Aggregated member status; computed externally by HOC in WorkspaceBrowser.tsx. */
+    liveStatus?: GroupLiveStatus;
     /** Visible session rows (empty while the group is folded). */
     sessions: readonly SessionNode[];
 }
@@ -154,7 +155,7 @@ export interface SessionRowState {
  * @param scheduleSummary - dsh-later schedule map (session id → schedule entry).
  * @returns group sections in render order.
  */
-export declare function deriveGroups(list: SessionListState, workspaces: readonly WorkspaceView[], rowState: SessionRowState, statuses: SessionStatuses, view: TreeView, waitingReviewSummary?: WaitingReviewSummaryMap, scheduleSummary?: ScheduleSummaryMap): GroupNode[];
+export declare function deriveGroups(list: SessionListState, workspaces: readonly WorkspaceView[], rowState: SessionRowState, statuses: SessionStatuses, view: TreeView): GroupNode[];
 /**
  * Select complete flat-list membership, independently of archive visibility.
  * @param list - sessions list snapshot.
