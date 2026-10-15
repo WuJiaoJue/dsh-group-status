@@ -1,5 +1,5 @@
 /**
- * 设置项 `showCompletedInBadge` 的解析与源契约。
+ * 设置项的解析与源契约。
  *
  * 折叠徽标的显示偏好经宿主 `configForms` 面到达浏览器半。本 spec 覆盖纯解析
  * （`resolveBadgeSettings`）与标准 props 源（`createBadgeSettingsSource`）：
@@ -16,33 +16,79 @@ import {
 
 const ready = (value: unknown): SettingsSnapshotLike => ({ status: 'ready', value })
 
+/** 默认设置（7 字段）。 */
+const DEFAULTS = {
+  showCompletedInBadge: true,
+  showRunningInBadge: true,
+  showPendingInBadge: true,
+  showScheduledInBadge: true,
+  showWaitingReviewInBadge: true,
+  showHoverDetails: true,
+  countThreshold: 2,
+}
+
 describe('resolveBadgeSettings', () => {
-  it('shows completed by default when the settings face is absent', () => {
-    expect(resolveBadgeSettings(undefined)).toEqual({ showCompletedInBadge: true })
-    expect(DEFAULT_BADGE_SETTINGS).toEqual({ showCompletedInBadge: true })
+  it('shows all states by default when the settings face is absent', () => {
+    expect(resolveBadgeSettings(undefined)).toEqual(DEFAULTS)
+    expect(DEFAULT_BADGE_SETTINGS).toEqual(DEFAULTS)
   })
 
-  it('falls back to showing completed before the namespace is served', () => {
+  it('falls back to showing all states before the namespace is served', () => {
     // `loading` / `unavailable`: 读不到配置不是「关掉」——必须与 schema 默认同源。
-    expect(resolveBadgeSettings({ status: 'loading' })).toEqual({ showCompletedInBadge: true })
-    expect(resolveBadgeSettings({ status: 'unavailable' })).toEqual({ showCompletedInBadge: true })
+    expect(resolveBadgeSettings({ status: 'loading' })).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings({ status: 'unavailable' })).toEqual(DEFAULTS)
   })
 
   it('hides completed only on an explicit false', () => {
-    expect(resolveBadgeSettings(ready({ showCompletedInBadge: false }))).toEqual({ showCompletedInBadge: false })
-    expect(resolveBadgeSettings(ready({ showCompletedInBadge: true }))).toEqual({ showCompletedInBadge: true })
+    expect(resolveBadgeSettings(ready({ showCompletedInBadge: false }))).toEqual({ ...DEFAULTS, showCompletedInBadge: false })
+    expect(resolveBadgeSettings(ready({ showCompletedInBadge: true }))).toEqual(DEFAULTS)
     // 非法/缺失值一律回落显示，避免把畸形配置读成「用户关掉了」。
-    expect(resolveBadgeSettings(ready({}))).toEqual({ showCompletedInBadge: true })
-    expect(resolveBadgeSettings(ready({ showCompletedInBadge: 'no' }))).toEqual({ showCompletedInBadge: true })
-    expect(resolveBadgeSettings(ready({ showCompletedInBadge: 0 }))).toEqual({ showCompletedInBadge: true })
-    expect(resolveBadgeSettings(ready(null))).toEqual({ showCompletedInBadge: true })
+    expect(resolveBadgeSettings(ready({}))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready({ showCompletedInBadge: 'no' }))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready({ showCompletedInBadge: 0 }))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready(null))).toEqual(DEFAULTS)
+  })
+
+  it('hides running only on an explicit false', () => {
+    expect(resolveBadgeSettings(ready({ showRunningInBadge: false }))).toEqual({ ...DEFAULTS, showRunningInBadge: false })
+  })
+
+  it('hides pending only on an explicit false', () => {
+    expect(resolveBadgeSettings(ready({ showPendingInBadge: false }))).toEqual({ ...DEFAULTS, showPendingInBadge: false })
+  })
+
+  it('hides scheduled only on an explicit false', () => {
+    expect(resolveBadgeSettings(ready({ showScheduledInBadge: false }))).toEqual({ ...DEFAULTS, showScheduledInBadge: false })
+  })
+
+  it('hides waiting review only on an explicit false', () => {
+    expect(resolveBadgeSettings(ready({ showWaitingReviewInBadge: false }))).toEqual({ ...DEFAULTS, showWaitingReviewInBadge: false })
+  })
+
+  it('hides hover details only on an explicit false', () => {
+    expect(resolveBadgeSettings(ready({ showHoverDetails: false }))).toEqual({ ...DEFAULTS, showHoverDetails: false })
+  })
+
+  it('respects countThreshold only on a valid non-negative integer', () => {
+    expect(resolveBadgeSettings(ready({ countThreshold: 1 }))).toEqual({ ...DEFAULTS, countThreshold: 1 })
+    expect(resolveBadgeSettings(ready({ countThreshold: 3 }))).toEqual({ ...DEFAULTS, countThreshold: 3 })
+    expect(resolveBadgeSettings(ready({ countThreshold: 0 }))).toEqual({ ...DEFAULTS, countThreshold: 0 })
+    // 非法/缺失值一律回落 2，避免把畸形配置读成「用户调过了」。
+    expect(resolveBadgeSettings(ready({}))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready({ countThreshold: 'no' }))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready({ countThreshold: -1 }))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready({ countThreshold: Infinity }))).toEqual(DEFAULTS)
+    expect(resolveBadgeSettings(ready({ countThreshold: NaN }))).toEqual(DEFAULTS)
+    // 小数向下取整也算合法。
+    expect(resolveBadgeSettings(ready({ countThreshold: 1.5 }))).toEqual({ ...DEFAULTS, countThreshold: 1 })
+    expect(resolveBadgeSettings(ready({ countThreshold: 2.0 }))).toEqual({ ...DEFAULTS, countThreshold: 2 })
   })
 })
 
 describe('createBadgeSettingsSource', () => {
   it('starts at the default so the badge works before any settings arrive', () => {
     // 源恒在且先给默认值：标准 props 的 hook 顺序不能因设置面晚到而变化。
-    expect(createBadgeSettingsSource().getSnapshot()).toEqual({ showCompletedInBadge: true })
+    expect(createBadgeSettingsSource().getSnapshot()).toEqual(DEFAULTS)
   })
 
   it('returns an identical object while nothing is published', () => {
@@ -56,7 +102,7 @@ describe('createBadgeSettingsSource', () => {
     const seen = vi.fn()
     source.subscribe(seen)
     source.publish(ready({ showCompletedInBadge: false }))
-    expect(source.getSnapshot()).toEqual({ showCompletedInBadge: false })
+    expect(source.getSnapshot()).toEqual({ ...DEFAULTS, showCompletedInBadge: false })
     expect(seen).toHaveBeenCalledTimes(1)
   })
 

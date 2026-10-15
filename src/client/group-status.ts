@@ -81,6 +81,42 @@ export const EMPTY_LIVE_STATUS: GroupLiveStatus = Object.freeze({
   waitingReviewCount: 0, waitingReviewState: undefined,
 }) as GroupLiveStatus
 
+/**
+ * Merge two {@link GroupLiveStatus} objects by summing counters and taking the
+ * highest-priority state (overdue > urgent > scheduled for schedule; overdue > waiting
+ * for waiting-review).
+ *
+ * Used for multi-level aggregation: when a parent group is collapsed, its badge
+ * must reflect all descendant sessions, not just direct members.
+ */
+export function mergeLiveStatus(a: GroupLiveStatus, b: GroupLiveStatus): GroupLiveStatus {
+  // Schedule state: overdue (3) > urgent (2) > scheduled (1) > undefined (0)
+  const priorityOf = (s: 'scheduled' | 'urgent' | 'overdue' | undefined): number =>
+    s === 'overdue' ? 3 : s === 'urgent' ? 2 : s === 'scheduled' ? 1 : 0
+  const schedulePriorityA = priorityOf(a.scheduleState)
+  const schedulePriorityB = priorityOf(b.scheduleState)
+  const scheduleState = schedulePriorityA >= schedulePriorityB ? a.scheduleState : b.scheduleState
+
+  // Waiting-review state: overdue > waiting > undefined
+  const waitingPriorityA = a.waitingReviewState === 'overdue' ? 2 : a.waitingReviewState === 'waiting' ? 1 : 0
+  const waitingPriorityB = b.waitingReviewState === 'overdue' ? 2 : b.waitingReviewState === 'waiting' ? 1 : 0
+  const waitingReviewState = waitingPriorityA >= waitingPriorityB ? a.waitingReviewState : b.waitingReviewState
+
+  return {
+    running: a.running + b.running,
+    approval: a.approval + b.approval,
+    planReview: a.planReview + b.planReview,
+    question: a.question + b.question,
+    done: a.done + b.done,
+    subagents: a.subagents + b.subagents,
+    scheduledSessions: a.scheduledSessions + b.scheduledSessions,
+    scheduledCount: a.scheduledCount + b.scheduledCount,
+    scheduleState,
+    waitingReviewCount: a.waitingReviewCount + b.waitingReviewCount,
+    waitingReviewState,
+  }
+}
+
 // ── Helpers ──
 
 /**

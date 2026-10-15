@@ -16,8 +16,8 @@
  * 引用——每次都构造新对象会让选择器的 `Object.is` 比较永不成立，触发
  * 「Maximum update depth exceeded」死循环（React #185），折叠行徽标会整块崩掉。
  *
- * 设置面缺席或未就绪时，回落到**默认显示已完成**，与 `Config.showCompletedInBadge` 的
- * schema 默认值同源：读不到配置不是「关掉」。
+ * 设置面缺席或未就绪时，回落到**默认全部显示**，与 `Config` 各字段的 schema 默认值同源：
+ * 读不到配置不是「关掉」。
  */
 
 /** Loader 条目 id —— 设置页的寻址键，也是宿主 `describe()` 的 ns。 */
@@ -39,6 +39,18 @@ export interface SettingsScopeLike {
 export interface ResolvedBadgeSettings {
   /** 折叠徽标是否显示「已完成」绿点；缺失/非法一律回落 true。 */
   showCompletedInBadge: boolean
+  /** 折叠徽标是否显示「进行中」转圈（含子智能体）；缺失/非法一律回落 true。 */
+  showRunningInBadge: boolean
+  /** 折叠徽标是否显示「待审批」黄点（approval / plan-review / question）；缺失/非法一律回落 true。 */
+  showPendingInBadge: boolean
+  /** 折叠徽标是否显示「定时任务」时钟图标（数据来自 dsh-later）；缺失/非法一律回落 true。 */
+  showScheduledInBadge: boolean
+  /** 折叠徽标是否显示「等待评审」列表笔图标（数据来自 dsh-gitea-dispatch）；缺失/非法一律回落 true。 */
+  showWaitingReviewInBadge: boolean
+  /** 悬停卡里是否显示聚合明细行；缺失/非法一律回落 true。 */
+  showHoverDetails: boolean
+  /** 徽标数字显示阈值：数量 >= 此值时才显示数字；缺失/非法一律回落 2（默认 count=1 时省略）。 */
+  countThreshold: number
 }
 
 /** 标准 props 源的结构面（与 `HostObservable<ResolvedBadgeSettings>` 兼容）。 */
@@ -59,17 +71,52 @@ export interface MutableBadgeSettingsSource extends BadgeSettingsSource {
   publish(snapshot: SettingsSnapshotLike | undefined): void
 }
 
-/** 默认值：与 `Config.showCompletedInBadge` 的 schema 默认同源（true）。 */
+/** 默认值：与 `Config` 各字段的 schema 默认同源（全部显示，数字阈值 2 即 count=1 时省略）。 */
 export const DEFAULT_BADGE_SETTINGS: ResolvedBadgeSettings = Object.freeze({
   showCompletedInBadge: true,
+  showRunningInBadge: true,
+  showPendingInBadge: true,
+  showScheduledInBadge: true,
+  showWaitingReviewInBadge: true,
+  showHoverDetails: true,
+  countThreshold: 2,
 })
 
-/** 从原始快照派生：只有**显式 false** 才隐藏，缺失/非法一律显示。 */
+/** 两个设置对象是否逐字段相等（用于发布前比较，避免无谓通知）。 */
+function settingsEqual(a: ResolvedBadgeSettings, b: ResolvedBadgeSettings): boolean {
+  return (
+    a.showCompletedInBadge === b.showCompletedInBadge &&
+    a.showRunningInBadge === b.showRunningInBadge &&
+    a.showPendingInBadge === b.showPendingInBadge &&
+    a.showScheduledInBadge === b.showScheduledInBadge &&
+    a.showWaitingReviewInBadge === b.showWaitingReviewInBadge &&
+    a.showHoverDetails === b.showHoverDetails &&
+    a.countThreshold === b.countThreshold
+  )
+}
+
+/** 从原始快照派生：只有**显式 false** 才隐藏，缺失/非法一律显示（countThreshold 默认 2）。 */
 function resolveFromSnapshot(snap: SettingsSnapshotLike | undefined): ResolvedBadgeSettings {
   if (snap === undefined || snap.status !== 'ready') return DEFAULT_BADGE_SETTINGS
   const value = snap.value as Record<string, unknown> | undefined
   if (value === undefined || value === null || typeof value !== 'object') return DEFAULT_BADGE_SETTINGS
-  return { showCompletedInBadge: value['showCompletedInBadge'] !== false }
+  const getBool = (field: string, def: boolean): boolean => {
+    const v = value[field]
+    return typeof v === 'boolean' ? v : def
+  }
+  const getNumber = (field: string, def: number): number => {
+    const v = value[field]
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : def
+  }
+  return {
+    showCompletedInBadge: getBool('showCompletedInBadge', true),
+    showRunningInBadge: getBool('showRunningInBadge', true),
+    showPendingInBadge: getBool('showPendingInBadge', true),
+    showScheduledInBadge: getBool('showScheduledInBadge', true),
+    showWaitingReviewInBadge: getBool('showWaitingReviewInBadge', true),
+    showHoverDetails: getBool('showHoverDetails', true),
+    countThreshold: getNumber('countThreshold', 2),
+  }
 }
 
 /**
@@ -98,7 +145,7 @@ export function createBadgeSettingsSource(): MutableBadgeSettingsSource {
       seenSet = true
       const next = resolveFromSnapshot(snapshot)
       // 取值没变就不替换引用、不通知：宿主为无关字段替换快照时不该惊动折叠行。
-      if (next.showCompletedInBadge === resolved.showCompletedInBadge) return
+      if (settingsEqual(next, resolved)) return
       resolved = next
       for (const listener of [...listeners]) listener()
     },
