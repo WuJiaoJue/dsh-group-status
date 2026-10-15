@@ -72,7 +72,7 @@ export function withGroupBadge<P extends { group: GroupNode; settings: ResolvedB
 
     return (
       <>
-        <ProjectRowItem {...(restProps as unknown as P)} group={groupWithStatus} settings={badgeSettings} />
+        <ProjectRowItem {...(restProps as unknown as P)} group={groupWithStatus} settings={badgeSettings} t={t} />
         {groupLiveBadge(groupWithStatus, t, badgeSettings)}
       </>
     )
