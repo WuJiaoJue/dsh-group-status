@@ -723,7 +723,12 @@ function SessionTree({
         label={t('section.sessions')}
         rowKeys={rowKeys}
         ready={list.phase === 'ready' && workspaceReady && !nativeDragActive}
-        resetKey={JSON.stringify([animationResetKey, sessionLimits])}
+        // Fork-owned: upstream also mixes `sessionLimits` into this key so that
+        // revealing hidden rows settles instantly. But folding a group writes
+        // sessionLimits too (reset to COLLAPSED_SESSION_LIMIT), which silently
+        // suppressed the row fade-out on every collapse. Keep only the
+        // view-replacement key so collapse/expand still animates.
+        resetKey={animationResetKey}
       >
         {groupsWithAggregatedStatus.length === 0 && (
           <EmptySessions rowState={rowState} onLeaveArchivedOnly={onLeaveArchivedOnly} t={t} />

@@ -67,6 +67,15 @@ export interface GroupLiveStatus {
  */
 export declare const EMPTY_LIVE_STATUS: GroupLiveStatus;
 /**
+ * Merge two {@link GroupLiveStatus} objects by summing counters and taking the
+ * highest-priority state (overdue > urgent > scheduled for schedule; overdue > waiting
+ * for waiting-review).
+ *
+ * Used for multi-level aggregation: when a parent group is collapsed, its badge
+ * must reflect all descendant sessions, not just direct members.
+ */
+export declare function mergeLiveStatus(a: GroupLiveStatus, b: GroupLiveStatus): GroupLiveStatus;
+/**
  * Fold every member row of a group into counts so a collapsed folder can hint at
  * hidden live sessions. Mirrors the session-row status priority (pending
  * outranks running outranks completed) at the counting level; labels resolve with
