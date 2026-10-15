@@ -13,27 +13,13 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
-// Fork-owned: types re-exported for backward compatibility.
-// The actual computation has moved to WorkspaceBrowser.tsx via HOC pattern.
-import type {
-  GroupLiveStatus,
-  ScheduleSummaryEntry,
-  ScheduleSummaryMap,
-  WaitingReviewSummaryEntry,
-  WaitingReviewSummaryMap,
-} from './group-status.ts'
-import { EMPTY_LIVE_STATUS, mergeLiveStatus } from './group-status.ts'
+// Fork-owned: `GroupLiveStatus` lives in ./group-status.ts and is re-exported here so
+// the vendored row components can keep importing every group type from one module.
+// Nothing else is re-exported: the status computation has no reason to pass through
+// this file, and the cross-plugin summary types had no consumers at all.
+import type { GroupLiveStatus } from './group-status.ts'
 
-// Re-export for backward compatibility — consumers can still import from `tree.ts`.
-export {
-  EMPTY_LIVE_STATUS,
-  mergeLiveStatus,
-  type GroupLiveStatus,
-  type ScheduleSummaryEntry,
-  type ScheduleSummaryMap,
-  type WaitingReviewSummaryEntry,
-  type WaitingReviewSummaryMap,
-}
+export type { GroupLiveStatus }
 
 /** Group key for Sessions outside every Workspace. */
 export const UNGROUPED_KEY = ''
@@ -85,9 +71,10 @@ export interface SessionNode {
 /** Session order selected by the Workspace browser. */
 export type SessionOrderBy = 'manual' | 'updated'
 
-// ── GroupLiveStatus, EMPTY_LIVE_STATUS, and cross-plugin summary types ──
-// Imported from ./group-status.ts and re-exported above (lines 16-32).
-// Keeping them in a separate file minimises the upstream diff surface.
+// ── Group node shapes ──
+// The live-status computation this fork adds lives entirely in ./group-status.ts;
+// only its `GroupLiveStatus` type is re-exported above. Keeping it in a separate
+// file minimises the upstream diff surface.
 
 /** One workspace group section: header row facts + visible top-level session rows. */
 export interface GroupNode {

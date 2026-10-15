@@ -68,10 +68,10 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { ArchivedFilter, GroupNode, SessionNode, SessionOrderBy, SessionRowState } from '../tree.ts'
 import {
-  deriveFlat, deriveGroups, deriveSearchResults, mergeLiveStatus, orderByRecency, owningGroupKey, owningParentFolder,
+  deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, owningGroupKey, owningParentFolder,
   pinCurrentBlank, reconcileManualOrder, sessionMemberIds, UNGROUPED_KEY,
 } from '../tree.ts'
-import { EMPTY_LIVE_STATUS, summarizeGroupStatus } from '../group-status.ts'
+import { directStatusesForGroups, withAggregatedStatus, type StatusedGroupNode } from '../group-status.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
@@ -446,61 +446,27 @@ function SessionTree({
     return children
   }, [groups, parents])
 
-  // Fork-owned: per-group direct live status. deriveGroups no longer computes
-  // liveStatus (PR #10 moved it out), so the multi-level aggregator needs this
-  // map as its data source — without it the aggregator merges only undefined.
-  const directStatusByGroup = useMemo(() => {
-    const map = new Map<string, GroupNode['liveStatus']>()
-    for (const group of groups) {
-      map.set(group.key, group.expanded
-        ? EMPTY_LIVE_STATUS
-        : summarizeGroupStatus(group.sessions, group.sessions.map(s => s.id), waitingReviewSummary, scheduleSummary))
-    }
-    return map
-  }, [groups, waitingReviewSummary, scheduleSummary])
+  // Fork-owned: each group's DIRECT member status — the input to the tree-wide
+  // aggregation below. deriveGroups stopped computing liveStatus (PR #10 moved it
+  // out), so this map is the aggregator's only data source. Expanded groups are
+  // measured too; see directStatusesForGroups.
+  const directStatusByGroup = useMemo(
+    () => directStatusesForGroups(groups, waitingReviewSummary, scheduleSummary),
+    [groups, waitingReviewSummary, scheduleSummary],
+  )
 
-  // Multi-level aggregation: when a parent group is collapsed, its badge must
-  // reflect all descendant sessions, not just direct members. Build a map from
-  // group key to aggregated status (direct + all descendants).
-  const aggregatedStatusByGroup = useMemo(() => {
-    const statusMap = new Map<string, GroupNode['liveStatus']>(directStatusByGroup)
-    // Bottom-up aggregation: for each group, aggregate its children's status
-    const aggregate = (key: string): GroupNode['liveStatus'] => {
-      const children = childrenByParentForAggregation.get(key) ?? []
-      if (children.length === 0) return statusMap.get(key)!
-      let aggregated = statusMap.get(key)!
-      for (const child of children) {
-        const childStatus = aggregate(child.key)
-        if (childStatus !== undefined) {
-          aggregated = mergeLiveStatus(aggregated, childStatus)
-        }
-      }
-      statusMap.set(key, aggregated)
-      return aggregated
-    }
-    // Aggregate from roots down (memoization in statusMap prevents recomputation)
-    const roots = childrenByParentForAggregation.get(undefined) ?? []
-    for (const root of roots) {
-      aggregate(root.key)
-    }
-    return statusMap
-  }, [directStatusByGroup, childrenByParentForAggregation])
-
-  // Update groups with aggregated status for collapsed groups
-  const groupsWithAggregatedStatus = useMemo(() => {
-    return groups.map(group => {
-      // Expanded groups don't show badges, so no need to aggregate
-      if (group.expanded) return group
-      const aggregated = aggregatedStatusByGroup.get(group.key)
-      if (aggregated === undefined || aggregated === group.liveStatus) return group
-      return { ...group, liveStatus: aggregated }
-    })
-  }, [groups, aggregatedStatusByGroup])
+  // Multi-level aggregation: a collapsed folder's badge covers its own members plus
+  // every descendant group's, at any depth. Every row comes back measured, so the
+  // render path can never see an unresolved liveStatus.
+  const groupsWithAggregatedStatus = useMemo(
+    () => withAggregatedStatus(groups, directStatusByGroup, childrenByParentForAggregation),
+    [groups, directStatusByGroup, childrenByParentForAggregation],
+  )
 
   // Rebuild tree structure with aggregated groups (for rendering)
   const childrenByParent = useMemo(() => {
     const rendered = new Set(groupsWithAggregatedStatus.map(group => group.key))
-    const children = new Map<string | undefined, GroupNode[]>()
+    const children = new Map<string | undefined, StatusedGroupNode[]>()
     for (const group of groupsWithAggregatedStatus) {
       // The archived-only view drops empty groups, so an ancestor may be
       // absent; nest under the nearest rendered one.
@@ -519,7 +485,7 @@ function SessionTree({
     && workspaceDrag.over.half === 'before'
 
   const rowKeys: string[] = groupsWithAggregatedStatus.length === 0 ? ['empty'] : []
-  const renderGroup = (group: GroupNode, depth: number): ReactNode => {
+  const renderGroup = (group: StatusedGroupNode, depth: number): ReactNode => {
     const workspaceId = group.workspaceId
     const children = childrenByParent.get(group.key) ?? []
     const compatibleDrag = workspaceDrag !== null && parents.get(workspaceDrag.workspaceId) === parents.get(group.key)
