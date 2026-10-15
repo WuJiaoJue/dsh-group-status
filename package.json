@@ -1,6 +1,6 @@
 {
   "name": "dsh-group-status",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "DSH 侧栏折叠分组聚合徽标：收起的文件夹行显示进行中/待审批/已完成/定时任务/等待评审的聚合状态，带数字与悬停明细。",
   "keywords": [
     "dsh",
