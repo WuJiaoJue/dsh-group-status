@@ -446,15 +446,24 @@ function SessionTree({
     return children
   }, [groups, parents])
 
+  // Fork-owned: per-group direct live status. deriveGroups no longer computes
+  // liveStatus (PR #10 moved it out), so the multi-level aggregator needs this
+  // map as its data source — without it the aggregator merges only undefined.
+  const directStatusByGroup = useMemo(() => {
+    const map = new Map<string, GroupNode['liveStatus']>()
+    for (const group of groups) {
+      map.set(group.key, group.expanded
+        ? EMPTY_LIVE_STATUS
+        : summarizeGroupStatus(group.sessions, group.sessions.map(s => s.id), waitingReviewSummary, scheduleSummary))
+    }
+    return map
+  }, [groups, waitingReviewSummary, scheduleSummary])
+
   // Multi-level aggregation: when a parent group is collapsed, its badge must
   // reflect all descendant sessions, not just direct members. Build a map from
   // group key to aggregated status (direct + all descendants).
   const aggregatedStatusByGroup = useMemo(() => {
-    const statusMap = new Map<string, GroupNode['liveStatus']>()
-    // Start with each group's direct status
-    for (const group of groups) {
-      statusMap.set(group.key, group.liveStatus)
-    }
+    const statusMap = new Map<string, GroupNode['liveStatus']>(directStatusByGroup)
     // Bottom-up aggregation: for each group, aggregate its children's status
     const aggregate = (key: string): GroupNode['liveStatus'] => {
       const children = childrenByParentForAggregation.get(key) ?? []
@@ -475,7 +484,7 @@ function SessionTree({
       aggregate(root.key)
     }
     return statusMap
-  }, [groups, childrenByParentForAggregation])
+  }, [directStatusByGroup, childrenByParentForAggregation])
 
   // Update groups with aggregated status for collapsed groups
   const groupsWithAggregatedStatus = useMemo(() => {
@@ -551,11 +560,8 @@ function SessionTree({
       : (half: 'before' | 'after') => {
         commitWorkspaceDrag(workspaceDrag, { id: workspaceId, half })
       }
-    // Compute liveStatus for the group badge (fork-owned: keeps tree.ts upstream-clean)
-    const liveStatus = group.expanded
-      ? EMPTY_LIVE_STATUS
-      : summarizeGroupStatus(group.sessions, group.sessions.map(s => s.id), waitingReviewSummary, scheduleSummary)
-    const groupWithStatus: GroupNode = { ...group, liveStatus }
+    // group arrives from groupsWithAggregatedStatus: collapsed groups already
+    // carry the bottom-up aggregated liveStatus (direct + all descendants).
     return (
     // Group section: header, descendant Workspaces, and own Session rows. The
     // inter-group breathing room is the section's own margin
@@ -598,7 +604,7 @@ function SessionTree({
       >
         <ProjectRowItem
           newShortcut={shortcuts.find(row => row.id === 'session.new')}
-          group={groupWithStatus}
+          group={group}
           containsCurrentDescendant={currentAncestors.has(group.key)}
           home={home}
           settings={badgeSettings}
