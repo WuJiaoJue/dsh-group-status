@@ -25,7 +25,7 @@ import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupLiveStatus, GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
-import { hoverStatusLines } from './GroupBadge.tsx'
+import { groupLiveBadge, hoverStatusLines } from './GroupBadge.tsx'
 import css from './Rows.module.css'
 
 /** The standard locale seat, prop-passed from the browser root. */
@@ -282,6 +282,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
       <span className={css.projectText}>
         <span className={css.title}>{label}</span>
       </span>
+      {groupLiveBadge(group, t, settings)}
       <span className={css.rowActions}>
         {actions !== undefined && (
           <Menu

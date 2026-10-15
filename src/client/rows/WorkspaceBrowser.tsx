@@ -71,8 +71,8 @@ import {
   deriveFlat, deriveGroups, deriveSearchResults, mergeLiveStatus, orderByRecency, owningGroupKey, owningParentFolder,
   pinCurrentBlank, reconcileManualOrder, sessionMemberIds, UNGROUPED_KEY,
 } from '../tree.ts'
+import { EMPTY_LIVE_STATUS, summarizeGroupStatus } from '../group-status.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
-import { withGroupBadge } from './WithGroupBadge.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
@@ -89,12 +89,6 @@ const SEARCH_DEBOUNCE_MS = 250
 const SEARCH_QUERY_MAX_CODE_UNITS = 500
 /** Idle Session rows visible per Workspace before the local overflow control. */
 const COLLAPSED_SESSION_LIMIT = 5
-
-/**
- * Fork-owned: HOC-wrapped ProjectRowItem that injects group status badge.
- * This is the only place where the badge logic is wired in — keeps Rows.tsx upstream-clean.
- */
-const ProjectRowItemWithBadge = withGroupBadge(ProjectRowItem)
 
 /** Keep provisional and running rows outside the idle-session quota, including parents with running children. */
 function collapsedSessionRows(sessions: readonly SessionNode[], limit = COLLAPSED_SESSION_LIMIT): {
@@ -557,6 +551,11 @@ function SessionTree({
       : (half: 'before' | 'after') => {
         commitWorkspaceDrag(workspaceDrag, { id: workspaceId, half })
       }
+    // Compute liveStatus for the group badge (fork-owned: keeps tree.ts upstream-clean)
+    const liveStatus = group.expanded
+      ? EMPTY_LIVE_STATUS
+      : summarizeGroupStatus(group.sessions, group.sessions.map(s => s.id), waitingReviewSummary, scheduleSummary)
+    const groupWithStatus: GroupNode = { ...group, liveStatus }
     return (
     // Group section: header, descendant Workspaces, and own Session rows. The
     // inter-group breathing room is the section's own margin
@@ -597,14 +596,12 @@ function SessionTree({
             }
           }}
       >
-        <ProjectRowItemWithBadge
+        <ProjectRowItem
           newShortcut={shortcuts.find(row => row.id === 'session.new')}
-          group={group}
+          group={groupWithStatus}
           containsCurrentDescendant={currentAncestors.has(group.key)}
           home={home}
-          badgeSettings={badgeSettings}
-          scheduleSummary={scheduleSummary}
-          waitingReviewSummary={waitingReviewSummary}
+          settings={badgeSettings}
           t={t}
           onToggle={() => {
             if (group.expanded) {
