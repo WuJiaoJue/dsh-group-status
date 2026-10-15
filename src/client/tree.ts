@@ -13,25 +13,21 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
-// Fork-owned: aggregated status computation extracted to keep upstream diff minimal.
-// Re-exported below so existing imports from `tree.ts` keep working.
-import {
-  EMPTY_LIVE_STATUS,
-  mergeLiveStatus,
-  summarizeGroupStatus,
-  type GroupLiveStatus,
-  type ScheduleSummaryEntry,
-  type ScheduleSummaryMap,
-  type WaitingReviewSummaryEntry,
-  type WaitingReviewSummaryMap,
+// Fork-owned: types re-exported for backward compatibility.
+// The actual computation has moved to WorkspaceBrowser.tsx via HOC pattern.
+import type {
+  GroupLiveStatus,
+  ScheduleSummaryEntry,
+  ScheduleSummaryMap,
+  WaitingReviewSummaryEntry,
+  WaitingReviewSummaryMap,
 } from './group-status.ts'
+import { EMPTY_LIVE_STATUS, mergeLiveStatus } from './group-status.ts'
 
-// Re-export fork-owned types and values so consumers importing from `tree.ts`
-// don't need to change their import paths.
+// Re-export for backward compatibility — consumers can still import from `tree.ts`.
 export {
   EMPTY_LIVE_STATUS,
   mergeLiveStatus,
-  summarizeGroupStatus,
   type GroupLiveStatus,
   type ScheduleSummaryEntry,
   type ScheduleSummaryMap,
@@ -108,8 +104,8 @@ export interface GroupNode {
   expanded: boolean
   /** The group contains the selected session (active folder tint; supplied here so the renderer never scans). */
   containsCurrent: boolean
-  /** Aggregated member status; present even while folded, for the folder badge. */
-  liveStatus: GroupLiveStatus
+  /** Aggregated member status; computed externally by HOC in WorkspaceBrowser.tsx. */
+  liveStatus?: GroupLiveStatus
   /** Visible session rows (empty while the group is folded). */
   sessions: readonly SessionNode[]
 }
@@ -472,8 +468,6 @@ export function deriveGroups(
   rowState: SessionRowState,
   statuses: SessionStatuses,
   view: TreeView,
-  waitingReviewSummary?: WaitingReviewSummaryMap,
-  scheduleSummary?: ScheduleSummaryMap,
 ): GroupNode[] {
   const archived = new Set(rowState.archivedSessionIds)
   const pinned = new Set(rowState.pinnedSessionIds)
@@ -487,7 +481,6 @@ export function deriveGroups(
     const expanded = expandedGroups.has(g.key)
     const members = sectionMembers(g.sessions, pinned, archived)
       .map(session => sessionNode(session, list, statuses, pinned, archived))
-    const memberIds = members.map(m => m.id)
     groups.push({
       key: g.key,
       workspaceId: g.workspaceId,
@@ -497,12 +490,9 @@ export function deriveGroups(
       sessionCount: g.sessions.length,
       expanded,
       containsCurrent: g.key === currentGroup,
-      // P0-1 优化：展开时徽标不显示，跳过全量聚合（折叠时再算）。
-      // 折叠动作本身触发 re-render，届时 expanded=false 会重新走 summarizeGroupStatus。
-      liveStatus: expanded
-        ? EMPTY_LIVE_STATUS
-        : summarizeGroupStatus(members, memberIds, waitingReviewSummary, scheduleSummary),
-      sessions: expanded ? members : [],
+      // Sessions always included so HOC in WorkspaceBrowser.tsx can compute badge.
+      // Rendering logic in WorkspaceBrowser.tsx still checks `expanded` before rendering rows.
+      sessions: members,
     })
   }
   return groups

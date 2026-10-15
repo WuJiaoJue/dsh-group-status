@@ -68,10 +68,11 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { ArchivedFilter, GroupNode, SessionNode, SessionOrderBy, SessionRowState } from '../tree.ts'
 import {
-  deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, owningGroupKey, owningParentFolder,
+  deriveFlat, deriveGroups, deriveSearchResults, mergeLiveStatus, orderByRecency, owningGroupKey, owningParentFolder,
   pinCurrentBlank, reconcileManualOrder, sessionMemberIds, UNGROUPED_KEY,
 } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
+import { withGroupBadge } from './WithGroupBadge.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
@@ -88,6 +89,12 @@ const SEARCH_DEBOUNCE_MS = 250
 const SEARCH_QUERY_MAX_CODE_UNITS = 500
 /** Idle Session rows visible per Workspace before the local overflow control. */
 const COLLAPSED_SESSION_LIMIT = 5
+
+/**
+ * Fork-owned: HOC-wrapped ProjectRowItem that injects group status badge.
+ * This is the only place where the badge logic is wired in — keeps Rows.tsx upstream-clean.
+ */
+const ProjectRowItemWithBadge = withGroupBadge(ProjectRowItem)
 
 /** Keep provisional and running rows outside the idle-session quota, including parents with running children. */
 function collapsedSessionRows(sessions: readonly SessionNode[], limit = COLLAPSED_SESSION_LIMIT): {
@@ -325,8 +332,8 @@ function SessionTree({
   revealSessionId, onSessionRevealed, shortcuts, useBadgeSettings,
 }: SessionTreeProps) {
   const panelActive = usePanelInfo(info => info.activePanelId !== null)
-  // 设置项 `showCompletedInBadge`：折叠徽标是否显示「已完成」绿点（默认显示）。
-  const showCompleted = useBadgeSettings(settings => settings.showCompletedInBadge)
+  // 徽标设置：各来源显隐、悬停明细、数字样式。
+  const badgeSettings = useBadgeSettings(settings => settings)
   const statuses = useSessionStatus(s => s)
   const scheduleSummary = useScheduleSummaryHook?.()
   const waitingReviewSummary = useWaitingSummaryHook?.()
@@ -372,17 +379,12 @@ function SessionTree({
     return [...workspaces.map(workspace => workspace.workspaceId), UNGROUPED_KEY]
       .filter(key => groupExpansion[key] ?? ancestorKeys.has(key))
   }, [groupExpansion, parents, workspaces])
-  // P0-2 优化：全部分组都展开时，跨插件摘要不会被消费（P0-1 已跳过聚合），
-  // 显式传 undefined 避免 deriveGroups 内无意义的 Map 查找循环。
-  const allGroupsExpanded = expandedGroups.length >= workspaces.length + 1
-    && workspaces.every(w => expandedGroups.includes(w.workspaceId))
-    && expandedGroups.includes(UNGROUPED_KEY)
   const groups = useMemo(
     () => deriveGroups(list, workspaces, rowState, statuses, {
       expandedGroups,
       ungroupedOrder: ungroupedSessionIds,
-    }, allGroupsExpanded ? undefined : waitingReviewSummary, allGroupsExpanded ? undefined : scheduleSummary),
-    [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds, scheduleSummary, waitingReviewSummary, allGroupsExpanded],
+    }),
+    [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds],
   )
   useEffect(() => {
     for (let key = revealGroup; key !== undefined; key = parents.get(key)) {
@@ -436,10 +438,67 @@ function SessionTree({
       console.warn('workspace reorder rejected:', reason)
     })
   }
-  const childrenByParent = useMemo(() => {
+  // Build tree structure from original groups (for aggregation traversal)
+  const childrenByParentForAggregation = useMemo(() => {
     const rendered = new Set(groups.map(group => group.key))
     const children = new Map<string | undefined, GroupNode[]>()
     for (const group of groups) {
+      let parent = parents.get(group.key)
+      while (parent !== undefined && !rendered.has(parent)) parent = parents.get(parent)
+      const siblings = children.get(parent)
+      if (siblings === undefined) children.set(parent, [group])
+      else siblings.push(group)
+    }
+    return children
+  }, [groups, parents])
+
+  // Multi-level aggregation: when a parent group is collapsed, its badge must
+  // reflect all descendant sessions, not just direct members. Build a map from
+  // group key to aggregated status (direct + all descendants).
+  const aggregatedStatusByGroup = useMemo(() => {
+    const statusMap = new Map<string, GroupNode['liveStatus']>()
+    // Start with each group's direct status
+    for (const group of groups) {
+      statusMap.set(group.key, group.liveStatus)
+    }
+    // Bottom-up aggregation: for each group, aggregate its children's status
+    const aggregate = (key: string): GroupNode['liveStatus'] => {
+      const children = childrenByParentForAggregation.get(key) ?? []
+      if (children.length === 0) return statusMap.get(key)!
+      let aggregated = statusMap.get(key)!
+      for (const child of children) {
+        const childStatus = aggregate(child.key)
+        if (childStatus !== undefined) {
+          aggregated = mergeLiveStatus(aggregated, childStatus)
+        }
+      }
+      statusMap.set(key, aggregated)
+      return aggregated
+    }
+    // Aggregate from roots down (memoization in statusMap prevents recomputation)
+    const roots = childrenByParentForAggregation.get(undefined) ?? []
+    for (const root of roots) {
+      aggregate(root.key)
+    }
+    return statusMap
+  }, [groups, childrenByParentForAggregation])
+
+  // Update groups with aggregated status for collapsed groups
+  const groupsWithAggregatedStatus = useMemo(() => {
+    return groups.map(group => {
+      // Expanded groups don't show badges, so no need to aggregate
+      if (group.expanded) return group
+      const aggregated = aggregatedStatusByGroup.get(group.key)
+      if (aggregated === undefined || aggregated === group.liveStatus) return group
+      return { ...group, liveStatus: aggregated }
+    })
+  }, [groups, aggregatedStatusByGroup])
+
+  // Rebuild tree structure with aggregated groups (for rendering)
+  const childrenByParent = useMemo(() => {
+    const rendered = new Set(groupsWithAggregatedStatus.map(group => group.key))
+    const children = new Map<string | undefined, GroupNode[]>()
+    for (const group of groupsWithAggregatedStatus) {
       // The archived-only view drops empty groups, so an ancestor may be
       // absent; nest under the nearest rendered one.
       let parent = parents.get(group.key)
@@ -449,13 +508,14 @@ function SessionTree({
       else siblings.push(group)
     }
     return children
-  }, [groups, parents])
+  }, [groupsWithAggregatedStatus, parents])
+
   const rootGroups = childrenByParent.get(undefined) ?? []
   const workspaceDropAtListStart = rootGroups[0]?.workspaceId !== undefined
     && workspaceDrag?.over?.id === rootGroups[0].workspaceId
     && workspaceDrag.over.half === 'before'
 
-  const rowKeys: string[] = groups.length === 0 ? ['empty'] : []
+  const rowKeys: string[] = groupsWithAggregatedStatus.length === 0 ? ['empty'] : []
   const renderGroup = (group: GroupNode, depth: number): ReactNode => {
     const workspaceId = group.workspaceId
     const children = childrenByParent.get(group.key) ?? []
@@ -537,12 +597,14 @@ function SessionTree({
             }
           }}
       >
-        <ProjectRowItem
+        <ProjectRowItemWithBadge
           newShortcut={shortcuts.find(row => row.id === 'session.new')}
           group={group}
           containsCurrentDescendant={currentAncestors.has(group.key)}
           home={home}
-          showCompleted={showCompleted}
+          badgeSettings={badgeSettings}
+          scheduleSummary={scheduleSummary}
+          waitingReviewSummary={waitingReviewSummary}
           t={t}
           onToggle={() => {
             if (group.expanded) {
@@ -660,7 +722,7 @@ function SessionTree({
         ready={list.phase === 'ready' && workspaceReady && !nativeDragActive}
         resetKey={JSON.stringify([animationResetKey, sessionLimits])}
       >
-        {groups.length === 0 && (
+        {groupsWithAggregatedStatus.length === 0 && (
           <EmptySessions rowState={rowState} onLeaveArchivedOnly={onLeaveArchivedOnly} t={t} />
         )}
         {groupRows}

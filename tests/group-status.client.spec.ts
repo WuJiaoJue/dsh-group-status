@@ -16,6 +16,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { deriveGroups, EMPTY_LIVE_STATUS, mergeLiveStatus, type GroupLiveStatus, type GroupNode } from '../src/client/tree.ts'
+import { summarizeGroupStatus } from '../src/client/group-status.ts'
 
 const sid = (id: string): SessionId => id as SessionId
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -84,9 +85,14 @@ const groupOf = (
     rowState({ archived: options.archived }),
     statuses,
     { expandedGroups: options.expanded === true ? ['alpha'] : [] },
-    options.waiting,
-    options.schedule,
   )
+  // Compute liveStatus externally (as the HOC does)
+  if (group.expanded) {
+    group.liveStatus = EMPTY_LIVE_STATUS
+  } else {
+    const memberIds = group.sessions.map(s => s.id)
+    group.liveStatus = summarizeGroupStatus(group.sessions, memberIds, options.waiting, options.schedule)
+  }
   return group!
 }
 
@@ -102,8 +108,9 @@ describe('folded group live status', () => {
     expect(group.expanded).toBe(false)
     // The fork's whole point: the folded row carries the aggregate…
     expect(group.liveStatus).toEqual({ ...EMPTY, approval: 1, running: 1, done: 1 })
-    // …while the rows themselves stay unrendered.
-    expect(group.sessions).toEqual([])
+    // Sessions are always populated now (for HOC badge computation).
+    // The rendering logic in WorkspaceBrowser.tsx still checks `expanded` before rendering rows.
+    expect(group.sessions.length).toBe(3)
     expect(group.sessionCount).toBe(3)
   })
 
@@ -238,9 +245,9 @@ describe('P3-2: performance regression', () => {
 
     expect(groups.length).toBe(50)
     expect(elapsed).toBeLessThan(50)
-    // Each group should have computed the aggregate.
+    // Each group should have sessions populated (for HOC to compute badge).
     for (const group of groups) {
-      expect(group.liveStatus.running).toBe(20)
+      expect(group.sessions.length).toBe(20)
     }
   })
 
@@ -272,10 +279,10 @@ describe('P3-2: performance regression', () => {
     expect(groups.length).toBe(50)
     // Expanded groups should be faster (no aggregation).
     expect(elapsed).toBeLessThan(50)
-    // All expanded groups should have EMPTY_LIVE_STATUS.
+    // All expanded groups should have sessions populated (for HOC to compute badge).
     for (const group of groups) {
       expect(group.expanded).toBe(true)
-      expect(group.liveStatus).toEqual(EMPTY)
+      expect(group.sessions.length).toBe(20)
     }
   })
 })
